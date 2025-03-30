@@ -1,0 +1,7 @@
+[package]
+name = "geop2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+float_next_after = "1.0.0"
