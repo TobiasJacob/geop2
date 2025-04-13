@@ -3,6 +3,7 @@ use std::fmt::Display;
 use crate::algebra_error::{AlgebraError, AlgebraResult};
 use crate::primitives::convex_hull::ConvexHull;
 use crate::primitives::efloat::EFloat64;
+use crate::primitives::hom_point::HomPoint;
 use crate::primitives::point::Point;
 
 use super::bspline_curve::BSplineCurve;
@@ -267,15 +268,15 @@ impl NurbsCurve {
         };
         let p = self.degree;
 
-        let mut d: Vec<NurbHelperPoint> = Vec::with_capacity(p + 1);
+        let mut d: Vec<HomPoint> = Vec::with_capacity(p + 1);
 
         // Initialize homogeneous control points: Qᵢ = (wᵢ * Pᵢ, wᵢ)
         for j in 0..=p {
             if k + j < p || k + j - p >= self.coefficients.len() {
-                d.push(NurbHelperPoint::zero());
+                d.push(HomPoint::zero());
             } else {
                 let idx = k + j - p;
-                d.push(NurbHelperPoint::new(
+                d.push(HomPoint::new(
                     self.coefficients[idx].clone() * self.weights[idx],
                     self.weights[idx],
                 ));
@@ -306,7 +307,7 @@ impl NurbsCurve {
             }
         }
         let dh = d[p].clone();
-        (dh.point / dh.weight).unwrap_or(Point::zero())
+        dh.to_point().unwrap_or(Point::zero())
     }
 }
 
@@ -317,52 +318,6 @@ impl Display for NurbsCurve {
             write!(f, "{}, ", coeff)?;
         }
         write!(f, ")")
-    }
-}
-/// Helper struct for homogeneous coordinates.
-#[derive(Clone)]
-struct NurbHelperPoint {
-    point: Point,
-    weight: EFloat64,
-}
-
-impl NurbHelperPoint {
-    pub fn zero() -> Self {
-        Self {
-            point: Point::zero(),
-            weight: EFloat64::zero(),
-        }
-    }
-
-    pub fn new(point: Point, weight: EFloat64) -> Self {
-        Self { point, weight }
-    }
-}
-
-impl std::ops::Add for NurbHelperPoint {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        Self {
-            point: self.point + other.point,
-            weight: self.weight + other.weight,
-        }
-    }
-}
-
-impl std::ops::Mul<EFloat64> for NurbHelperPoint {
-    type Output = Self;
-    fn mul(self, scalar: EFloat64) -> Self {
-        Self {
-            point: self.point * scalar,
-            weight: self.weight * scalar,
-        }
-    }
-}
-
-impl std::ops::Mul<NurbHelperPoint> for EFloat64 {
-    type Output = NurbHelperPoint;
-    fn mul(self, rhs: NurbHelperPoint) -> NurbHelperPoint {
-        rhs * self
     }
 }
 

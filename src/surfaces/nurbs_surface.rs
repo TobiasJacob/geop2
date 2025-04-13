@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     algebra_error::{AlgebraError, AlgebraResult},
-    primitives::{efloat::EFloat64, point::Point},
+    primitives::{efloat::EFloat64, hom_point::HomPoint, point::Point},
 };
 
 /// A NURBS (Non-Uniform Rational B-Spline) surface defined as a tensor product of NURBS basis functions.
@@ -196,21 +196,21 @@ impl NurbsSurface {
 
         // Build a 2D array of homogeneous control points.
         // Each homogeneous point is of the form (w * P, w).
-        let mut d: Vec<Vec<NurbsHelperPoint>> = Vec::with_capacity(p_u + 1);
+        let mut d: Vec<Vec<HomPoint>> = Vec::with_capacity(p_u + 1);
         for i in 0..=p_u {
             if k_u + i < p_u || k_u + i - p_u >= self.coefficients.len() {
-                d.push(vec![NurbsHelperPoint::zero(); self.coefficients[0].len()]);
+                d.push(vec![HomPoint::zero(); self.coefficients[0].len()]);
             } else {
                 let mut row = Vec::with_capacity(p_v + 1);
                 for j in 0..=p_v {
                     if k_v + j < p_v || k_v + j - p_v >= self.coefficients[0].len() {
-                        row.push(NurbsHelperPoint::zero());
+                        row.push(HomPoint::zero());
                     } else {
-                        row.push(NurbsHelperPoint {
-                            point: self.coefficients[k_u + i - p_u][k_v + j - p_v]
+                        row.push(HomPoint::new(
+                            self.coefficients[k_u + i - p_u][k_v + j - p_v]
                                 * self.weights[k_u + i - p_u][k_v + j - p_v],
-                            weight: self.weights[k_u + i - p_u][k_v + j - p_v].clone(),
-                        });
+                            self.weights[k_u + i - p_u][k_v + j - p_v].clone(),
+                        ));
                     }
                 }
                 d.push(row);
@@ -257,7 +257,7 @@ impl NurbsSurface {
         }
 
         let dh = d[p_u][p_v].clone();
-        (dh.point / dh.weight).unwrap_or(Point::zero())
+        dh.to_point().unwrap_or(Point::zero())
     }
 }
 
@@ -294,49 +294,6 @@ impl Display for NurbsSurface {
             write!(f, "{}, ", knot)?;
         }
         write!(f, "])")
-    }
-}
-
-/// Helper struct for representing homogeneous control points during evaluation.
-#[derive(Clone)]
-struct NurbsHelperPoint {
-    point: Point,
-    weight: EFloat64,
-}
-
-impl NurbsHelperPoint {
-    pub fn zero() -> Self {
-        Self {
-            point: Point::zero(),
-            weight: EFloat64::zero(),
-        }
-    }
-}
-
-impl std::ops::Add for NurbsHelperPoint {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        Self {
-            point: self.point + other.point,
-            weight: self.weight + other.weight,
-        }
-    }
-}
-
-impl std::ops::Mul<EFloat64> for NurbsHelperPoint {
-    type Output = Self;
-    fn mul(self, scalar: EFloat64) -> Self {
-        Self {
-            point: self.point * scalar,
-            weight: self.weight * scalar,
-        }
-    }
-}
-
-impl std::ops::Mul<NurbsHelperPoint> for EFloat64 {
-    type Output = NurbsHelperPoint;
-    fn mul(self, rhs: NurbsHelperPoint) -> NurbsHelperPoint {
-        rhs * self
     }
 }
 
