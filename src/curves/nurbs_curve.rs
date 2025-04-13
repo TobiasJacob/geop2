@@ -275,10 +275,10 @@ impl NurbsCurve {
                 d.push(NurbHelperPoint::zero());
             } else {
                 let idx = k + j - p;
-                d.push(NurbHelperPoint {
-                    point: self.coefficients[idx].clone() * self.weights[idx],
-                    weight: self.weights[idx],
-                });
+                d.push(NurbHelperPoint::new(
+                    self.coefficients[idx].clone() * self.weights[idx],
+                    self.weights[idx],
+                ));
             }
         }
 
@@ -306,9 +306,6 @@ impl NurbsCurve {
             }
         }
         let dh = d[p].clone();
-        if dh.weight == EFloat64::zero() {
-            return Point::zero();
-        }
         (dh.point / dh.weight).unwrap_or(Point::zero())
     }
 }
@@ -335,6 +332,10 @@ impl NurbHelperPoint {
             point: Point::zero(),
             weight: EFloat64::zero(),
         }
+    }
+
+    pub fn new(point: Point, weight: EFloat64) -> Self {
+        Self { point, weight }
     }
 }
 

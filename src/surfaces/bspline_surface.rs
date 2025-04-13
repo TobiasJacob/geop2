@@ -189,14 +189,15 @@ impl BSplineSurface {
             if k_u + i < p_u || k_u + i - p_u >= self.coefficients.len() {
                 d.push(vec![Point::zero(); self.coefficients[0].len()]);
             } else {
-                d.push(self.coefficients[k_u + i - p_u].clone());
+                let mut row = Vec::with_capacity(p_v + 1);
                 for j in 0..=p_v {
                     if k_v + j < p_v || k_v + j - p_v >= self.coefficients[0].len() {
-                        d[i][j] = Point::zero();
+                        row.push(Point::zero());
                     } else {
-                        d[i][j] = self.coefficients[k_u + i - p_u][k_v + j - p_v].clone();
+                        row.push(self.coefficients[k_u + i - p_u][k_v + j - p_v].clone());
                     }
                 }
+                d.push(row);
             }
         }
 
