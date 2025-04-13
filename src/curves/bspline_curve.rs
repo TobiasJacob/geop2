@@ -2,9 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     algebra_error::{AlgebraError, AlgebraResult},
-    efloat::EFloat64,
-    point::Point,
-    MultiDimensionFunction,
+    primitives::{efloat::EFloat64, point::Point},
 };
 
 #[derive(Debug, Clone)]
@@ -67,7 +65,9 @@ impl BSplineCurve {
         if index > knot_vector.len() - degree - 2 {
             return Err(AlgebraError::new(format!(
                 "BSplineCurve invalid input: index {} is greater than knot_vector.len() ({}) - degree ({}) - (2)",
-                index, knot_vector.len(), degree
+                index,
+                knot_vector.len(),
+                degree
             )));
         }
 
@@ -111,7 +111,7 @@ impl BSplineCurve {
             None => {
                 return Err(AlgebraError::new(
                     "Parameter t is out of the valid domain for knot insertion".to_string(),
-                ))
+                ));
             }
         };
         println!("k: {}", k);
@@ -187,7 +187,7 @@ impl BSplineCurve {
             None => {
                 return Err(AlgebraError::new(
                     "Failed to locate knot with full multiplicity after insertion".to_string(),
-                ))
+                ));
             }
         };
 
@@ -220,25 +220,8 @@ impl BSplineCurve {
 
         result
     }
-}
 
-impl Display for BSplineCurve {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "BSplineCurve(")?;
-        for coeff in self.coefficients.iter() {
-            write!(f, "{}, ", coeff)?;
-        }
-        write!(f, "degree: {}, ", self.degree)?;
-        write!(f, "knots: [")?;
-        for knot in &self.knot_vector {
-            write!(f, "{}, ", knot)?;
-        }
-        write!(f, "])")
-    }
-}
-
-impl MultiDimensionFunction for BSplineCurve {
-    fn eval(&self, t: EFloat64) -> Point {
+    pub fn eval(&self, t: EFloat64) -> Point {
         // Follows https://en.wikipedia.org/wiki/De_Boor%27s_algorithm
 
         // Find which knot span contains t
@@ -282,10 +265,24 @@ impl MultiDimensionFunction for BSplineCurve {
     }
 }
 
+impl Display for BSplineCurve {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BSplineCurve(")?;
+        for coeff in self.coefficients.iter() {
+            write!(f, "{}, ", coeff)?;
+        }
+        write!(f, "degree: {}, ", self.degree)?;
+        write!(f, "knots: [")?;
+        for knot in &self.knot_vector {
+            write!(f, "{}, ", knot)?;
+        }
+        write!(f, "])")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::efloat::EFloat64;
 
     fn to_efloat_vec(values: Vec<f64>) -> Vec<EFloat64> {
         values.into_iter().map(EFloat64::from).collect()

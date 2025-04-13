@@ -1,13 +1,11 @@
 use std::fmt::Display;
 
-use crate::curves::bspline_curve::BSplineCurve;
+use crate::algebra_error::{AlgebraError, AlgebraResult};
 use crate::primitives::convex_hull::ConvexHull;
+use crate::primitives::efloat::EFloat64;
 use crate::primitives::point::Point;
-use crate::{
-    algebra_error::{AlgebraError, AlgebraResult},
-    efloat::EFloat64,
-    MultiDimensionFunction,
-};
+
+use super::bspline_curve::BSplineCurve;
 
 /// A NURBS (Non-Uniform Rational B-Spline) curve.
 ///
@@ -77,7 +75,9 @@ impl NurbsCurve {
         if index >= n {
             return Err(AlgebraError::new(format!(
                 "NURBSCurve invalid input: index {} is out of range for knot_vector.len() {} and degree {}",
-                index, knot_vector.len(), degree
+                index,
+                knot_vector.len(),
+                degree
             )));
         }
         let mut coefficients = vec![Point::zero(); n];
@@ -137,7 +137,7 @@ impl NurbsCurve {
             None => {
                 return Err(AlgebraError::new(
                     "Failed to locate knot with full multiplicity after insertion".to_string(),
-                ))
+                ));
             }
         };
 
@@ -257,67 +257,8 @@ impl NurbsCurve {
         }
         numerator / denominator
     }
-}
 
-impl Display for NurbsCurve {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "NurbsCurve(")?;
-        for coeff in self.coefficients.iter() {
-            write!(f, "{}, ", coeff)?;
-        }
-        write!(f, ")")
-    }
-}
-/// Helper struct for homogeneous coordinates.
-#[derive(Clone)]
-struct NurbHelperPoint {
-    point: Point,
-    weight: EFloat64,
-}
-
-impl NurbHelperPoint {
-    pub fn zero() -> Self {
-        Self {
-            point: Point::zero(),
-            weight: EFloat64::zero(),
-        }
-    }
-}
-
-impl std::ops::Add for NurbHelperPoint {
-    type Output = Self;
-    fn add(self, other: Self) -> Self {
-        Self {
-            point: self.point + other.point,
-            weight: self.weight + other.weight,
-        }
-    }
-}
-
-impl std::ops::Mul<EFloat64> for NurbHelperPoint {
-    type Output = Self;
-    fn mul(self, scalar: EFloat64) -> Self {
-        Self {
-            point: self.point * scalar,
-            weight: self.weight * scalar,
-        }
-    }
-}
-
-impl std::ops::Mul<NurbHelperPoint> for EFloat64 {
-    type Output = NurbHelperPoint;
-    fn mul(self, rhs: NurbHelperPoint) -> NurbHelperPoint {
-        rhs * self
-    }
-}
-
-/// Evaluate a NURBS curve using a rational de Boor algorithm.
-/// This method first lifts the control points into homogeneous coordinates:
-/// Qᵢ = (wᵢ * Pᵢ, wᵢ)
-/// Then de Boor's algorithm is applied and the resulting point is projected back
-/// (by dividing by its weight).
-impl MultiDimensionFunction for NurbsCurve {
-    fn eval(&self, t: EFloat64) -> Point {
+    pub fn eval(&self, t: EFloat64) -> Point {
         // return self.eval_slow(t).unwrap_or(T::zero());
 
         let k = match self.find_span(t) {
@@ -372,10 +313,62 @@ impl MultiDimensionFunction for NurbsCurve {
     }
 }
 
+impl Display for NurbsCurve {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NurbsCurve(")?;
+        for coeff in self.coefficients.iter() {
+            write!(f, "{}, ", coeff)?;
+        }
+        write!(f, ")")
+    }
+}
+/// Helper struct for homogeneous coordinates.
+#[derive(Clone)]
+struct NurbHelperPoint {
+    point: Point,
+    weight: EFloat64,
+}
+
+impl NurbHelperPoint {
+    pub fn zero() -> Self {
+        Self {
+            point: Point::zero(),
+            weight: EFloat64::zero(),
+        }
+    }
+}
+
+impl std::ops::Add for NurbHelperPoint {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self {
+            point: self.point + other.point,
+            weight: self.weight + other.weight,
+        }
+    }
+}
+
+impl std::ops::Mul<EFloat64> for NurbHelperPoint {
+    type Output = Self;
+    fn mul(self, scalar: EFloat64) -> Self {
+        Self {
+            point: self.point * scalar,
+            weight: self.weight * scalar,
+        }
+    }
+}
+
+impl std::ops::Mul<NurbHelperPoint> for EFloat64 {
+    type Output = NurbHelperPoint;
+    fn mul(self, rhs: NurbHelperPoint) -> NurbHelperPoint {
+        rhs * self
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::efloat::EFloat64;
+    use crate::primitives::efloat::EFloat64;
 
     fn to_efloat_vec(values: Vec<f64>) -> Vec<EFloat64> {
         values.into_iter().map(EFloat64::from).collect()
