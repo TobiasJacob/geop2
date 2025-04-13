@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::algebra_error::{AlgebraError, AlgebraResult};
 use crate::primitives::convex_hull::ConvexHull;
 use crate::primitives::efloat::EFloat64;
-use crate::primitives::hom_point::HomPoint;
+use crate::primitives::nurb_helper_point::NurbHelperPoint;
 use crate::primitives::point::Point;
 
 use super::bspline_curve::BSplineCurve;
@@ -268,15 +268,15 @@ impl NurbsCurve {
         };
         let p = self.degree;
 
-        let mut d: Vec<HomPoint> = Vec::with_capacity(p + 1);
+        let mut d: Vec<NurbHelperPoint> = Vec::with_capacity(p + 1);
 
         // Initialize homogeneous control points: Qᵢ = (wᵢ * Pᵢ, wᵢ)
         for j in 0..=p {
             if k + j < p || k + j - p >= self.coefficients.len() {
-                d.push(HomPoint::zero());
+                d.push(NurbHelperPoint::zero());
             } else {
                 let idx = k + j - p;
-                d.push(HomPoint::new(
+                d.push(NurbHelperPoint::new(
                     self.coefficients[idx].clone() * self.weights[idx],
                     self.weights[idx],
                 ));

@@ -4,12 +4,12 @@ use super::{efloat::EFloat64, point::Point};
 
 /// Helper struct for representing homogeneous control points during evaluation.
 #[derive(Clone)]
-pub struct HomPoint {
+pub struct NurbHelperPoint {
     point: Point,
     weight: EFloat64,
 }
 
-impl HomPoint {
+impl NurbHelperPoint {
     pub fn new(point: Point, weight: EFloat64) -> Self {
         Self { point, weight }
     }
@@ -26,7 +26,7 @@ impl HomPoint {
     }
 }
 
-impl std::ops::Add for HomPoint {
+impl std::ops::Add for NurbHelperPoint {
     type Output = Self;
     fn add(self, other: Self) -> Self {
         Self {
@@ -36,7 +36,7 @@ impl std::ops::Add for HomPoint {
     }
 }
 
-impl std::ops::Mul<EFloat64> for HomPoint {
+impl std::ops::Mul<EFloat64> for NurbHelperPoint {
     type Output = Self;
     fn mul(self, scalar: EFloat64) -> Self {
         Self {
@@ -46,9 +46,9 @@ impl std::ops::Mul<EFloat64> for HomPoint {
     }
 }
 
-impl std::ops::Mul<HomPoint> for EFloat64 {
-    type Output = HomPoint;
-    fn mul(self, rhs: HomPoint) -> HomPoint {
+impl std::ops::Mul<NurbHelperPoint> for EFloat64 {
+    type Output = NurbHelperPoint;
+    fn mul(self, rhs: NurbHelperPoint) -> NurbHelperPoint {
         rhs * self
     }
 }

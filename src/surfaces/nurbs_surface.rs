@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     algebra_error::{AlgebraError, AlgebraResult},
-    primitives::{efloat::EFloat64, hom_point::HomPoint, point::Point},
+    primitives::{efloat::EFloat64, nurb_helper_point::NurbHelperPoint, point::Point},
 };
 
 /// A NURBS (Non-Uniform Rational B-Spline) surface defined as a tensor product of NURBS basis functions.
@@ -196,17 +196,17 @@ impl NurbsSurface {
 
         // Build a 2D array of homogeneous control points.
         // Each homogeneous point is of the form (w * P, w).
-        let mut d: Vec<Vec<HomPoint>> = Vec::with_capacity(p_u + 1);
+        let mut d: Vec<Vec<NurbHelperPoint>> = Vec::with_capacity(p_u + 1);
         for i in 0..=p_u {
             if k_u + i < p_u || k_u + i - p_u >= self.coefficients.len() {
-                d.push(vec![HomPoint::zero(); self.coefficients[0].len()]);
+                d.push(vec![NurbHelperPoint::zero(); self.coefficients[0].len()]);
             } else {
                 let mut row = Vec::with_capacity(p_v + 1);
                 for j in 0..=p_v {
                     if k_v + j < p_v || k_v + j - p_v >= self.coefficients[0].len() {
-                        row.push(HomPoint::zero());
+                        row.push(NurbHelperPoint::zero());
                     } else {
-                        row.push(HomPoint::new(
+                        row.push(NurbHelperPoint::new(
                             self.coefficients[k_u + i - p_u][k_v + j - p_v]
                                 * self.weights[k_u + i - p_u][k_v + j - p_v],
                             self.weights[k_u + i - p_u][k_v + j - p_v].clone(),
