@@ -169,9 +169,9 @@ impl BSplineSurface {
 
     /// Evaluates the B‑spline surface at the parameter pair (u, v).
     ///
-    /// This is done using a tensor product de Boor algorithm:
+    /// This is done using a tensor product de Boor algorithm:
     /// 1. For each contributing row (in the u–direction), the surface is evaluated in the v–direction.
-    /// 2. The resulting intermediate points are then used in a de Boor evaluation in the u–direction.
+    /// 2. The resulting intermediate points are then used in a de Boor evaluation in the u–direction.
     pub fn eval(&self, u: EFloat64, v: EFloat64) -> Point {
         let k_u = match self.find_span_u(u.clone()) {
             Some(idx) => idx,
@@ -201,7 +201,7 @@ impl BSplineSurface {
             }
         }
 
-        // Apply de Boor's algorithm.
+        // Apply de Boor's algorithm.
         for r_u in 1..=p_u {
             for j_u in (r_u..=p_u).rev() {
                 let alpha_u =
@@ -302,6 +302,64 @@ impl BSplineSurface {
         )
     }
 
+    /// Inserts the knot value `t` once into the B‑spline surface in the v–direction using the standard
+    /// knot insertion algorithm. This updates the v knot vector and control net.
+    pub fn insert_knot_v(&self, t: EFloat64) -> AlgebraResult<BSplineSurface> {
+        let k = match self.find_span_v(t.clone()) {
+            Some(idx) => idx,
+            None => {
+                return Err(AlgebraError::new(
+                    "Parameter t is out of the valid domain for knot insertion in v".to_string(),
+                ));
+            }
+        };
+        let p = self.degree_v;
+        let n = self.coefficients[0].len() - 1; // last column index
+        let num_rows = self.coefficients.len();
+
+        // Build new v knot vector.
+        let mut new_knot_vector_v: Vec<EFloat64> = Vec::with_capacity(self.knot_vector_v.len() + 1);
+        for i in 0..=k {
+            new_knot_vector_v.push(self.knot_vector_v[i].clone());
+        }
+        new_knot_vector_v.push(t.clone());
+        for i in (k + 1)..self.knot_vector_v.len() {
+            new_knot_vector_v.push(self.knot_vector_v[i].clone());
+        }
+
+        // Build new control net (v–direction only changes: rows remain unchanged).
+        let mut new_coeffs: Vec<Vec<Point>> = Vec::with_capacity(num_rows);
+        for i in 0..num_rows {
+            let mut new_row: Vec<Point> = Vec::with_capacity(self.coefficients[i].len() + 1);
+            // Copy columns that are not affected.
+            for j in 0..(k - p + 1) {
+                new_row.push(self.coefficients[i][j].clone());
+            }
+            // Recompute affected columns.
+            for j in (k - p + 1)..=k {
+                let alpha = ((t.clone() - self.knot_vector_v[j].clone())
+                    / (self.knot_vector_v[j + p].clone() - self.knot_vector_v[j].clone()))
+                .unwrap_or(EFloat64::zero());
+                let pt = self.coefficients[i][j - 1].clone() * (EFloat64::one() - alpha.clone())
+                    + self.coefficients[i][j].clone() * alpha.clone();
+                new_row.push(pt);
+            }
+            // Copy the remaining columns.
+            for j in k..=n {
+                new_row.push(self.coefficients[i][j].clone());
+            }
+            new_coeffs.push(new_row);
+        }
+
+        BSplineSurface::try_new(
+            new_coeffs,
+            self.knot_vector_u.clone(),
+            new_knot_vector_v,
+            self.degree_u,
+            p,
+        )
+    }
+
     /// Subdivides the B‑spline surface along the u–direction at parameter `t` into two new
     /// BSplineSurface segments. The method inserts `t` repeatedly until its multiplicity equals
     /// degree_u+1 (i.e. a break point) then splits the control net and u knot vector.
@@ -356,6 +414,70 @@ impl BSplineSurface {
             surface.knot_vector_v.clone(),
             p,
             surface.degree_v,
+        )?;
+
+        Ok((left_surface, right_surface))
+    }
+
+    /// Subdivides the B‑spline surface along the v–direction at parameter `t` into two new
+    /// BSplineSurface segments. The method inserts `t` repeatedly until its multiplicity equals
+    /// degree_v+1 (i.e. a break point) then splits the control net and v knot vector.
+    ///
+    /// The u–direction remains unchanged.
+    pub fn subdivide_v(&self, t: EFloat64) -> AlgebraResult<(BSplineSurface, BSplineSurface)> {
+        let p = self.degree_v;
+
+        if t < self.knot_vector_v[p] || t > self.knot_vector_v[self.knot_vector_v.len() - p - 1] {
+            return Err(AlgebraError::new(
+                "Parameter t is out of the valid domain for v subdivision".to_string(),
+            ));
+        }
+
+        // Determine current multiplicity of t in v–direction.
+        let current_multiplicity = self.knot_vector_v.iter().filter(|&knot| *knot == t).count();
+        // t must appear with multiplicity p+1.
+        let r = p - current_multiplicity;
+        let mut surface = self.clone();
+        for _ in 0..r {
+            surface = surface.insert_knot_v(t.clone())?;
+        }
+
+        let t_index = match surface.find_span_v(t.clone()) {
+            Some(idx) => idx,
+            None => {
+                return Err(AlgebraError::new(
+                    "Failed to locate knot t with full multiplicity after insertion in v"
+                        .to_string(),
+                ));
+            }
+        };
+
+        // Build left surface: columns 0 to (t_index - p) and the corresponding v–knot vector.
+        let mut left_coeffs: Vec<Vec<Point>> = Vec::with_capacity(surface.coefficients.len());
+        for row in &surface.coefficients {
+            left_coeffs.push(row[..=(t_index - p)].to_vec());
+        }
+        let left_knots_v = surface.knot_vector_v[..=t_index + 1].to_vec();
+        let left_surface = BSplineSurface::try_new(
+            left_coeffs,
+            surface.knot_vector_u.clone(),
+            left_knots_v,
+            surface.degree_u,
+            p,
+        )?;
+
+        // Build right surface: columns from (t_index - p) to end.
+        let mut right_coeffs: Vec<Vec<Point>> = Vec::with_capacity(surface.coefficients.len());
+        for row in &surface.coefficients {
+            right_coeffs.push(row[(t_index - p)..].to_vec());
+        }
+        let right_knots_v = surface.knot_vector_v[t_index - p..].to_vec();
+        let right_surface = BSplineSurface::try_new(
+            right_coeffs,
+            surface.knot_vector_u.clone(),
+            right_knots_v,
+            surface.degree_u,
+            p,
         )?;
 
         Ok((left_surface, right_surface))
@@ -549,6 +671,140 @@ mod tests {
                 assert_eq!(orig, right_val, "Mismatch at (u,v)=({}, {})", u_val, v_val);
             }
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_insert_knot_v() -> AlgebraResult<()> {
+        // Create a simple 3x3 B-spline surface.
+        let coefficients = vec![
+            vec![
+                Point::unit_z() * EFloat64::from(1.0),
+                Point::unit_z() * EFloat64::from(2.0),
+                Point::unit_z() * EFloat64::from(3.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(4.0),
+                Point::unit_z() * EFloat64::from(5.0),
+                Point::unit_z() * EFloat64::from(6.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(7.0),
+                Point::unit_z() * EFloat64::from(8.0),
+                Point::unit_z() * EFloat64::from(9.0),
+            ],
+        ];
+
+        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
+        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]); // Changed to [0,2] domain
+        let surface = BSplineSurface::try_new(coefficients, knot_vector_u, knot_vector_v, 2, 2)?;
+        println!("Original surface: {}", surface);
+
+        // Insert a knot at v = 1.0 (now in the middle of the domain)
+        let t = EFloat64::from(1.0);
+        let surface2 = surface.insert_knot_v(t.clone())?;
+        println!("Surface after inserting knot v at {}: {}", t, surface2);
+
+        // Check that evaluation remains the same after knot insertion.
+        // We test at various points in the parameter domain.
+        for i in 0..=100 {
+            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            for j in 0..=100 {
+                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0); // Scale to [0,2] domain
+                let orig = surface.eval(u_val.clone(), v_val.clone());
+                let new = surface2.eval(u_val.clone(), v_val.clone());
+                assert_eq!(orig, new, "Mismatch at (u,v)=({}, {})", u_val, v_val);
+            }
+        }
+
+        // Verify that the knot vector was updated correctly
+        assert_eq!(
+            surface2.knot_vector_v.len(),
+            surface.knot_vector_v.len() + 1
+        );
+        assert!(surface2.knot_vector_v.contains(&t));
+
+        // Verify that the control net was updated correctly
+        assert_eq!(surface2.coefficients.len(), surface.coefficients.len());
+        assert_eq!(
+            surface2.coefficients[0].len(),
+            surface.coefficients[0].len() + 1
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_subdivide_v() -> AlgebraResult<()> {
+        // Create a simple 3x3 B-spline surface.
+        let coefficients = vec![
+            vec![
+                Point::unit_z() * EFloat64::from(1.0),
+                Point::unit_z() * EFloat64::from(2.0),
+                Point::unit_z() * EFloat64::from(3.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(4.0),
+                Point::unit_z() * EFloat64::from(5.0),
+                Point::unit_z() * EFloat64::from(6.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(7.0),
+                Point::unit_z() * EFloat64::from(8.0),
+                Point::unit_z() * EFloat64::from(9.0),
+            ],
+        ];
+
+        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
+        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]); // Changed to [0,2] domain
+        let surface = BSplineSurface::try_new(coefficients, knot_vector_u, knot_vector_v, 2, 2)?;
+
+        // Subdivide at v = 1.0 (now in the middle of the domain)
+        let t = EFloat64::from(1.0);
+        let (left, right) = surface.subdivide_v(t.clone())?;
+
+        println!("Left: {}", left);
+        println!("Right: {}", right);
+
+        // Verify that evaluation remains the same after subdivision
+        // Test points in the left segment (v < 1.0)
+        for i in 0..=100 {
+            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            for j in 0..=50 {
+                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0); // Scale to [0,2] domain
+                if v_val < t {
+                    let orig = surface.eval(u_val.clone(), v_val.clone());
+                    let new = left.eval(u_val.clone(), v_val.clone());
+                    assert_eq!(
+                        orig, new,
+                        "Mismatch in left segment at (u,v)=({}, {})",
+                        u_val, v_val
+                    );
+                }
+            }
+        }
+
+        // Test points in the right segment (v > 1.0)
+        for i in 0..=100 {
+            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            for j in 51..=100 {
+                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0); // Scale to [0,2] domain
+                if v_val > t {
+                    let orig = surface.eval(u_val.clone(), v_val.clone());
+                    let new = right.eval(u_val.clone(), v_val.clone());
+                    assert_eq!(
+                        orig, new,
+                        "Mismatch in right segment at (u,v)=({}, {})",
+                        u_val, v_val
+                    );
+                }
+            }
+        }
+
+        // Verify that the knot vectors were updated correctly
+        assert!(left.knot_vector_v.contains(&t));
+        assert!(right.knot_vector_v.contains(&t));
 
         Ok(())
     }
