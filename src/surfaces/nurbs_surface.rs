@@ -252,6 +252,68 @@ impl NurbsSurface {
         )
     }
 
+    /// Subdivides the NURBS surface along the u–direction at parameter `t` into two new
+    /// NurbsSurface segments. The method inserts `t` repeatedly until its multiplicity equals
+    /// degree_u+1 (i.e. a break point) then splits the control net, weights, and u knot vector.
+    ///
+    /// The v–direction remains unchanged.
+    pub fn subdivide_u(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
+        let p = self.degree_u;
+
+        if t < self.knot_vector_u[p] || t > self.knot_vector_u[self.knot_vector_u.len() - p - 1] {
+            return Err(AlgebraError::new(
+                "Parameter t is out of the valid domain for u subdivision".to_string(),
+            ));
+        }
+
+        // Determine current multiplicity of t in u–direction.
+        let current_multiplicity = self.knot_vector_u.iter().filter(|&knot| *knot == t).count();
+        // t must appear with multiplicity p+1.
+        let r = p - current_multiplicity;
+        let mut surface = self.clone();
+        for _ in 0..r {
+            surface = surface.insert_knot_u(t.clone())?;
+        }
+
+        let t_index = match surface.find_span_u(t.clone()) {
+            Some(idx) => idx,
+            None => {
+                return Err(AlgebraError::new(
+                    "Failed to locate knot t with full multiplicity after insertion in u"
+                        .to_string(),
+                ));
+            }
+        };
+
+        // Build left surface: rows 0 to (t_index - p) and the corresponding u–knot vector.
+        let left_coeffs = surface.coefficients[..=(t_index - p)].to_vec();
+        let left_weights = surface.weights[..=(t_index - p)].to_vec();
+        let left_knots_u = surface.knot_vector_u[..=t_index + 1].to_vec();
+        let left_surface = NurbsSurface::try_new(
+            left_coeffs,
+            left_weights,
+            left_knots_u,
+            surface.knot_vector_v.clone(),
+            p,
+            surface.degree_v,
+        )?;
+
+        // Build right surface: rows from (t_index - p) to end.
+        let right_coeffs = surface.coefficients[(t_index - p)..].to_vec();
+        let right_weights = surface.weights[(t_index - p)..].to_vec();
+        let right_knots_u = surface.knot_vector_u[t_index - p..].to_vec();
+        let right_surface = NurbsSurface::try_new(
+            right_coeffs,
+            right_weights,
+            right_knots_u,
+            surface.knot_vector_v.clone(),
+            p,
+            surface.degree_v,
+        )?;
+
+        Ok((left_surface, right_surface))
+    }
+
     /// Evaluates the NURBS surface at the parameter pair (u, v).
     ///
     /// This is done by first converting the control net into homogeneous coordinates (multiplying
@@ -596,6 +658,98 @@ mod tests {
         // Verify that the control net and weights were updated correctly
         assert_eq!(surface2.coefficients.len(), surface.coefficients.len() + 1);
         assert_eq!(surface2.weights.len(), surface.weights.len() + 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_subdivide_u() -> AlgebraResult<()> {
+        // Create a simple 3x3 NURBS surface with varying weights
+        let coefficients = vec![
+            vec![
+                Point::unit_z() * EFloat64::from(1.0),
+                Point::unit_z() * EFloat64::from(2.0),
+                Point::unit_z() * EFloat64::from(3.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(4.0),
+                Point::unit_z() * EFloat64::from(5.0),
+                Point::unit_z() * EFloat64::from(6.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(7.0),
+                Point::unit_z() * EFloat64::from(8.0),
+                Point::unit_z() * EFloat64::from(9.0),
+            ],
+        ];
+        let weights = vec![
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(2.0),
+                EFloat64::from(1.0),
+            ],
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(3.0),
+                EFloat64::from(1.0),
+            ],
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(2.0),
+                EFloat64::from(1.0),
+            ],
+        ];
+
+        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
+        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+        let surface =
+            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
+
+        // Subdivide at u = 1.0
+        let t = EFloat64::from(1.0);
+        let (left, right) = surface.subdivide_u(t.clone())?;
+
+        println!("Left: {}", left);
+        println!("Right: {}", right);
+
+        // Verify that evaluation remains the same after subdivision
+        // Test points in the left segment (u < 1.0)
+        for i in 0..=50 {
+            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            if u_val < t {
+                for j in 0..=100 {
+                    let v_val = EFloat64::from(j as f64 / 100.0);
+                    let orig = surface.eval(u_val.clone(), v_val.clone());
+                    let new = left.eval(u_val.clone(), v_val.clone());
+                    assert_eq!(
+                        orig, new,
+                        "Mismatch in left segment at (u,v)=({}, {})",
+                        u_val, v_val
+                    );
+                }
+            }
+        }
+
+        // Test points in the right segment (u > 1.0)
+        for i in 51..=100 {
+            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            if u_val > t {
+                for j in 0..=100 {
+                    let v_val = EFloat64::from(j as f64 / 100.0);
+                    let orig = surface.eval(u_val.clone(), v_val.clone());
+                    let new = right.eval(u_val.clone(), v_val.clone());
+                    assert_eq!(
+                        orig, new,
+                        "Mismatch in right segment at (u,v)=({}, {})",
+                        u_val, v_val
+                    );
+                }
+            }
+        }
+
+        // Verify that the knot vectors were updated correctly
+        assert!(left.knot_vector_u.contains(&t));
+        assert!(right.knot_vector_u.contains(&t));
 
         Ok(())
     }
