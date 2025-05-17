@@ -224,6 +224,16 @@ impl ConvexHull {
             }
         }
     }
+
+    /// Checks if a point is contained within the convex hull.
+    pub fn contains_point(&self, point: &Point) -> bool {
+        match self {
+            Self::Point(p) => p == point,
+            Self::Line(l) => point_line_intersection(point, l),
+            Self::Triangle(t) => point_triangle_intersection(point, t),
+            Self::Polyhedron(faces) => point_polyhedron_intersection(point, faces),
+        }
+    }
 }
 
 impl Display for ConvexHull {

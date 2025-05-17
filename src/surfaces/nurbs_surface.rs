@@ -3,7 +3,8 @@ use std::fmt::Display;
 use crate::{
     algebra_error::{AlgebraError, AlgebraResult},
     curves::nurbs_curve::NurbsCurve,
-    primitives::{efloat::EFloat64, nurb_helper_point::NurbHelperPoint, point::Point},
+    primitives::nurb_helper_point::NurbHelperPoint,
+    primitives::{convex_hull::ConvexHull, efloat::EFloat64, point::Point},
 };
 
 /// A NURBS (Non-Uniform Rational B-Spline) surface defined as a tensor product of NURBS basis functions.
@@ -683,6 +684,20 @@ impl NurbsSurface {
             self.degree_u,
         )
     }
+
+    /// Returns the convex hull of the control points of the NURBS surface.
+    /// This is the smallest convex set containing all control points.
+    pub fn get_convex_hull(&self) -> AlgebraResult<ConvexHull> {
+        // Flatten the 2D control points array into a 1D vector
+        let points: Vec<Point> = self
+            .coefficients
+            .iter()
+            .flat_map(|row| row.iter().cloned())
+            .collect();
+
+        // Use the existing ConvexHull implementation
+        ConvexHull::try_new(points)
+    }
 }
 
 impl Display for NurbsSurface {
@@ -1286,6 +1301,90 @@ mod tests {
         assert!(surface.iso_curve_u(EFloat64::from(3.0)).is_err());
         assert!(surface.iso_curve_v(EFloat64::from(-1.0)).is_err());
         assert!(surface.iso_curve_v(EFloat64::from(3.0)).is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_convex_hull_contains_all_points() -> AlgebraResult<()> {
+        // Create a simple 3x3 NURBS surface with control points forming a pyramid-like shape
+        let coefficients = vec![
+            vec![
+                Point::new(
+                    EFloat64::from(0.0),
+                    EFloat64::from(0.0),
+                    EFloat64::from(0.0),
+                ),
+                Point::new(
+                    EFloat64::from(1.0),
+                    EFloat64::from(0.0),
+                    EFloat64::from(0.0),
+                ),
+                Point::new(
+                    EFloat64::from(2.0),
+                    EFloat64::from(0.0),
+                    EFloat64::from(0.0),
+                ),
+            ],
+            vec![
+                Point::new(
+                    EFloat64::from(0.0),
+                    EFloat64::from(1.0),
+                    EFloat64::from(0.0),
+                ),
+                Point::new(
+                    EFloat64::from(1.0),
+                    EFloat64::from(1.0),
+                    EFloat64::from(2.0),
+                ), // Peak
+                Point::new(
+                    EFloat64::from(2.0),
+                    EFloat64::from(1.0),
+                    EFloat64::from(0.0),
+                ),
+            ],
+            vec![
+                Point::new(
+                    EFloat64::from(0.0),
+                    EFloat64::from(2.0),
+                    EFloat64::from(0.0),
+                ),
+                Point::new(
+                    EFloat64::from(1.0),
+                    EFloat64::from(2.0),
+                    EFloat64::from(0.0),
+                ),
+                Point::new(
+                    EFloat64::from(2.0),
+                    EFloat64::from(2.0),
+                    EFloat64::from(0.0),
+                ),
+            ],
+        ];
+        let weights = vec![
+            vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
+            vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
+            vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
+        ];
+
+        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+        let surface =
+            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
+
+        // Get the convex hull
+        let hull = surface.get_convex_hull()?;
+
+        // Verify that all control points are inside the convex hull
+        for row in &surface.coefficients {
+            for point in row {
+                assert!(
+                    hull.contains_point(point),
+                    "Control point {} is not inside the convex hull",
+                    point
+                );
+            }
+        }
 
         Ok(())
     }
