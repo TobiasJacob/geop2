@@ -24,6 +24,10 @@ impl NurbHelperPoint {
     pub fn to_point(&self) -> AlgebraResult<Point> {
         self.point / self.weight
     }
+
+    pub fn weight(&self) -> EFloat64 {
+        self.weight
+    }
 }
 
 impl std::ops::Add for NurbHelperPoint {

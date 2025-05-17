@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     algebra_error::{AlgebraError, AlgebraResult},
+    curves::nurbs_curve::NurbsCurve,
     primitives::{efloat::EFloat64, nurb_helper_point::NurbHelperPoint, point::Point},
 };
 
@@ -540,6 +541,148 @@ impl NurbsSurface {
         let dh = d[p_u][p_v].clone();
         dh.to_point().unwrap_or(Point::zero())
     }
+
+    /// Returns a NURBS curve that represents the iso-curve of the surface at a fixed u parameter.
+    /// The resulting curve is defined over the v parameter domain.
+    pub fn iso_curve_u(&self, u: EFloat64) -> AlgebraResult<NurbsCurve> {
+        let k_u = match self.find_span_u(u.clone()) {
+            Some(idx) => idx,
+            None => {
+                return Err(AlgebraError::new(
+                    "Parameter u is out of the valid domain for iso-curve extraction".to_string(),
+                ));
+            }
+        };
+        let p_u = self.degree_u;
+
+        // Initialize arrays for the de Boor algorithm
+        let mut d: Vec<Vec<NurbHelperPoint>> = Vec::with_capacity(self.coefficients[0].len());
+        for j in 0..self.coefficients[0].len() {
+            let mut row = Vec::with_capacity(p_u + 1);
+            for i in 0..=p_u {
+                if k_u + i < p_u || k_u + i - p_u >= self.coefficients.len() {
+                    row.push(NurbHelperPoint::zero());
+                } else {
+                    row.push(NurbHelperPoint::new(
+                        self.coefficients[k_u + i - p_u][j].clone()
+                            * self.weights[k_u + i - p_u][j].clone(),
+                        self.weights[k_u + i - p_u][j].clone(),
+                    ));
+                }
+            }
+            d.push(row);
+        }
+
+        // Apply de Boor's algorithm in the u-direction
+        for r_u in 1..=p_u {
+            for j_u in (r_u..=p_u).rev() {
+                let alpha_u =
+                    match k_u + j_u < p_u || j_u + 1 + k_u - r_u >= self.knot_vector_u.len() {
+                        true => EFloat64::zero(),
+                        false => {
+                            let left_knot = self.knot_vector_u[j_u + k_u - p_u].clone();
+                            let right_knot = self.knot_vector_u[j_u + 1 + k_u - r_u].clone();
+                            ((u.clone() - left_knot) / (right_knot - left_knot))
+                                .unwrap_or(EFloat64::zero())
+                        }
+                    };
+                for j in 0..self.coefficients[0].len() {
+                    d[j][j_u] = d[j][j_u - 1].clone() * (EFloat64::one() - alpha_u.clone())
+                        + d[j][j_u].clone() * alpha_u.clone();
+                }
+            }
+        }
+
+        // Extract control points and weights for the resulting NURBS curve
+        let mut curve_coeffs = Vec::with_capacity(self.coefficients[0].len());
+        let mut curve_weights = Vec::with_capacity(self.coefficients[0].len());
+        for j in 0..self.coefficients[0].len() {
+            let dh = d[j][p_u].clone();
+            match dh.to_point() {
+                Ok(pt) => curve_coeffs.push(pt),
+                Err(_) => curve_coeffs.push(Point::zero()),
+            }
+            curve_weights.push(d[j][p_u].weight());
+        }
+
+        NurbsCurve::try_new(
+            curve_coeffs,
+            curve_weights,
+            self.knot_vector_v.clone(),
+            self.degree_v,
+        )
+    }
+
+    /// Returns a NURBS curve that represents the iso-curve of the surface at a fixed v parameter.
+    /// The resulting curve is defined over the u parameter domain.
+    pub fn iso_curve_v(&self, v: EFloat64) -> AlgebraResult<NurbsCurve> {
+        let k_v = match self.find_span_v(v.clone()) {
+            Some(idx) => idx,
+            None => {
+                return Err(AlgebraError::new(
+                    "Parameter v is out of the valid domain for iso-curve extraction".to_string(),
+                ));
+            }
+        };
+        let p_v = self.degree_v;
+
+        // Initialize arrays for the de Boor algorithm
+        let mut d: Vec<Vec<NurbHelperPoint>> = Vec::with_capacity(self.coefficients.len());
+        for i in 0..self.coefficients.len() {
+            let mut row = Vec::with_capacity(p_v + 1);
+            for j in 0..=p_v {
+                if k_v + j < p_v || k_v + j - p_v >= self.coefficients[0].len() {
+                    row.push(NurbHelperPoint::zero());
+                } else {
+                    row.push(NurbHelperPoint::new(
+                        self.coefficients[i][k_v + j - p_v].clone()
+                            * self.weights[i][k_v + j - p_v].clone(),
+                        self.weights[i][k_v + j - p_v].clone(),
+                    ));
+                }
+            }
+            d.push(row);
+        }
+
+        // Apply de Boor's algorithm in the v-direction
+        for r_v in 1..=p_v {
+            for j_v in (r_v..=p_v).rev() {
+                let alpha_v =
+                    match k_v + j_v < p_v || j_v + 1 + k_v - r_v >= self.knot_vector_v.len() {
+                        true => EFloat64::zero(),
+                        false => {
+                            let left_knot = self.knot_vector_v[j_v + k_v - p_v].clone();
+                            let right_knot = self.knot_vector_v[j_v + 1 + k_v - r_v].clone();
+                            ((v.clone() - left_knot) / (right_knot - left_knot))
+                                .unwrap_or(EFloat64::zero())
+                        }
+                    };
+                for i in 0..self.coefficients.len() {
+                    d[i][j_v] = d[i][j_v - 1].clone() * (EFloat64::one() - alpha_v.clone())
+                        + d[i][j_v].clone() * alpha_v.clone();
+                }
+            }
+        }
+
+        // Extract control points and weights for the resulting NURBS curve
+        let mut curve_coeffs = Vec::with_capacity(self.coefficients.len());
+        let mut curve_weights = Vec::with_capacity(self.coefficients.len());
+        for i in 0..self.coefficients.len() {
+            let dh = d[i][p_v].clone();
+            match dh.to_point() {
+                Ok(pt) => curve_coeffs.push(pt),
+                Err(_) => curve_coeffs.push(Point::zero()),
+            }
+            curve_weights.push(d[i][p_v].weight());
+        }
+
+        NurbsCurve::try_new(
+            curve_coeffs,
+            curve_weights,
+            self.knot_vector_u.clone(),
+            self.degree_u,
+        )
+    }
 }
 
 impl Display for NurbsSurface {
@@ -1060,6 +1203,89 @@ mod tests {
         // Verify that the knot vectors were updated correctly
         assert!(left.knot_vector_v.contains(&t));
         assert!(right.knot_vector_v.contains(&t));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_iso_curves() -> AlgebraResult<()> {
+        // Create a simple 3x3 NURBS surface with varying weights
+        let coefficients = vec![
+            vec![
+                Point::unit_z() * EFloat64::from(1.0),
+                Point::unit_z() * EFloat64::from(2.0),
+                Point::unit_z() * EFloat64::from(3.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(4.0),
+                Point::unit_z() * EFloat64::from(5.0),
+                Point::unit_z() * EFloat64::from(6.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(7.0),
+                Point::unit_z() * EFloat64::from(8.0),
+                Point::unit_z() * EFloat64::from(9.0),
+            ],
+        ];
+        let weights = vec![
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(2.0),
+                EFloat64::from(1.0),
+            ],
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(3.0),
+                EFloat64::from(1.0),
+            ],
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(2.0),
+                EFloat64::from(1.0),
+            ],
+        ];
+
+        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
+        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
+        let surface =
+            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
+
+        // Test u-iso-curve at u = 1.0
+        let u_fixed = EFloat64::from(0.4523453);
+        let u_iso = surface.iso_curve_u(u_fixed.clone())?;
+        // Verify that evaluating the iso-curve at any v gives the same result as evaluating the surface
+        for i in 0..=100 {
+            let v = EFloat64::from(i as f64 / 100.0 * 2.0);
+            let surface_point = surface.eval(u_fixed.clone(), v.clone());
+            let curve_point = u_iso.eval(v);
+            assert_eq!(
+                surface_point, curve_point,
+                "Mismatch in u-iso-curve at v={}",
+                v
+            );
+        }
+
+        // Test v-iso-curve at v = 1.0
+        let v_fixed = EFloat64::from(0.4523453);
+        let v_iso = surface.iso_curve_v(v_fixed.clone())?;
+        // Verify that evaluating the iso-curve at any u gives the same result as evaluating the surface
+        for i in 0..=100 {
+            let u = EFloat64::from(i as f64 / 100.0 * 2.0);
+            let surface_point = surface.eval(u.clone(), v_fixed.clone());
+            let curve_point = v_iso.eval(u);
+            assert_eq!(
+                surface_point, curve_point,
+                "Mismatch in v-iso-curve at u={}",
+                u
+            );
+        }
+
+        // Test error cases
+        // Try to get iso-curve outside the valid domain
+        assert!(surface.iso_curve_u(EFloat64::from(-1.0)).is_err());
+        assert!(surface.iso_curve_u(EFloat64::from(3.0)).is_err());
+        assert!(surface.iso_curve_v(EFloat64::from(-1.0)).is_err());
+        assert!(surface.iso_curve_v(EFloat64::from(3.0)).is_err());
 
         Ok(())
     }
