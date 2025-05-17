@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Three.js Scene</title>
+    <style>
+        body {
+            margin: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        // Initialize arrays for geometry data
+        const pointsData = [/* Add points here */];
+        const linesData = [/* Add lines here */];
+        const trianglesData = [/* Add triangles here */];
+
+        // Create scene
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+
+        // Create camera
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        // Create renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Add ambient light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // Add directional light
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(1, 1, 1);
+        scene.add(directionalLight);
+
+        // Add coordinate system
+        const axesHelper = new THREE.AxesHelper(2);
+        scene.add(axesHelper);
+
+        // Create points
+        const pointsGeometry = new THREE.BufferGeometry();
+        if (pointsData.length > 0) {
+            pointsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pointsData, 3));
+        }
+        const pointsMaterial = new THREE.PointsMaterial({
+            color: 0xff0000,
+            size: 0.1
+        });
+        const points = new THREE.Points(pointsGeometry, pointsMaterial);
+        scene.add(points);
+
+        // Create lines
+        const linesGeometry = new THREE.BufferGeometry();
+        if (linesData.length > 0) {
+            linesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(linesData, 3));
+        }
+        const linesMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+        const lines = new THREE.LineSegments(linesGeometry, linesMaterial);
+        scene.add(lines);
+
+        // Create triangles
+        const trianglesGeometry = new THREE.BufferGeometry();
+        if (trianglesData.length > 0) {
+            trianglesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trianglesData, 3));
+            trianglesGeometry.computeVertexNormals();
+        }
+        const trianglesMaterial = new THREE.MeshPhongMaterial({
+            color: 0x0000ff,
+            side: THREE.DoubleSide
+        });
+        const triangles = new THREE.Mesh(trianglesGeometry, trianglesMaterial);
+        scene.add(triangles);
+
+        // Add orbit controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+
+</html>
