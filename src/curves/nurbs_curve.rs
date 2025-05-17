@@ -98,8 +98,15 @@ impl NurbsCurve {
         if t < self.knot_vector[0] {
             return None;
         }
-        if t >= self.knot_vector[self.knot_vector.len() - 1] {
+        if t > self.knot_vector[self.knot_vector.len() - 1] {
             return None;
+        }
+        if t == self.knot_vector[self.knot_vector.len() - 1] {
+            let mut mid = self.knot_vector.len() - 1;
+            while self.knot_vector[mid] == t {
+                mid -= 1;
+            }
+            return Some(mid);
         }
         let mut mid = 0;
         while !(self.knot_vector[mid] <= t && t < self.knot_vector[mid + 1]) {
