@@ -176,11 +176,87 @@ impl NurbsSurface {
         NurbsSurface::find_span_generic(&self.knot_vector_v, t)
     }
 
+    /// Inserts the knot value `t` once into the NURBS surface in the u–direction using the standard
+    /// knot insertion algorithm. This updates the u knot vector, control net, and weights.
+    pub fn insert_knot_u(&self, t: EFloat64) -> AlgebraResult<NurbsSurface> {
+        let k = match self.find_span_u(t.clone()) {
+            Some(idx) => idx,
+            None => {
+                return Err(AlgebraError::new(
+                    "Parameter t is out of the valid domain for knot insertion in u".to_string(),
+                ));
+            }
+        };
+        let p = self.degree_u;
+        let m = self.coefficients.len() - 1; // last row index
+        let num_cols = self.coefficients[0].len();
+
+        // Build new u knot vector.
+        let mut new_knot_vector_u: Vec<EFloat64> = Vec::with_capacity(self.knot_vector_u.len() + 1);
+        for i in 0..=k {
+            new_knot_vector_u.push(self.knot_vector_u[i].clone());
+        }
+        new_knot_vector_u.push(t.clone());
+        for i in (k + 1)..self.knot_vector_u.len() {
+            new_knot_vector_u.push(self.knot_vector_u[i].clone());
+        }
+
+        // Build new control net and weights (u–direction only changes: columns remain unchanged).
+        let mut new_coeffs: Vec<Vec<Point>> = Vec::with_capacity(self.coefficients.len() + 1);
+        let mut new_weights: Vec<Vec<EFloat64>> = Vec::with_capacity(self.weights.len() + 1);
+
+        // Copy rows that are not affected.
+        for i in 0..(k - p + 1) {
+            new_coeffs.push(self.coefficients[i].clone());
+            new_weights.push(self.weights[i].clone());
+        }
+
+        // Recompute affected rows.
+        for i in (k - p + 1)..=k {
+            let mut new_row_coeffs: Vec<Point> = Vec::with_capacity(num_cols);
+            let mut new_row_weights: Vec<EFloat64> = Vec::with_capacity(num_cols);
+            let alpha = ((t.clone() - self.knot_vector_u[i].clone())
+                / (self.knot_vector_u[i + p].clone() - self.knot_vector_u[i].clone()))
+            .unwrap_or(EFloat64::zero());
+            for j in 0..num_cols {
+                let weight = self.weights[i - 1][j].clone() * (EFloat64::one() - alpha.clone())
+                    + self.weights[i][j].clone() * alpha.clone();
+                let alpha = self.coefficients[i - 1][j].clone()
+                    * self.weights[i - 1][j].clone()
+                    * (EFloat64::one() - alpha.clone())
+                    + self.coefficients[i][j].clone() * self.weights[i][j].clone() * alpha.clone();
+                let pt = match alpha.clone() / weight.clone() {
+                    Ok(pt) => pt,
+                    Err(_) => Point::zero(),
+                };
+                new_row_coeffs.push(pt);
+                new_row_weights.push(weight);
+            }
+            new_coeffs.push(new_row_coeffs);
+            new_weights.push(new_row_weights);
+        }
+
+        // Copy the remaining rows.
+        for i in k..=m {
+            new_coeffs.push(self.coefficients[i].clone());
+            new_weights.push(self.weights[i].clone());
+        }
+
+        NurbsSurface::try_new(
+            new_coeffs,
+            new_weights,
+            new_knot_vector_u,
+            self.knot_vector_v.clone(),
+            p,
+            self.degree_v,
+        )
+    }
+
     /// Evaluates the NURBS surface at the parameter pair (u, v).
     ///
     /// This is done by first converting the control net into homogeneous coordinates (multiplying
     /// each control point by its weight and augmenting with the weight), then applying the two–step
-    /// de Boor algorithm (first along the v–direction for each row, then along the u–direction),
+    /// de Boor algorithm (first along the v–direction for each row, then along the u–direction),
     /// and finally converting back to Euclidean space.
     pub fn eval(&self, u: EFloat64, v: EFloat64) -> Point {
         let k_u = match self.find_span_u(u.clone()) {
@@ -217,7 +293,7 @@ impl NurbsSurface {
             }
         }
 
-        // Apply de Boor's algorithm.
+        // Apply de Boor's algorithm.
         for r_u in 1..=p_u {
             for j_u in (r_u..=p_u).rev() {
                 let alpha_u =
@@ -446,6 +522,81 @@ mod tests {
         let p = surface.eval(EFloat64::from(0.5), EFloat64::from(0.5));
         // We expect a nonzero value because the basis function centered at (1,1) has support in the interior.
         assert!(p != Point::zero());
+        Ok(())
+    }
+
+    #[test]
+    fn test_insert_knot_u() -> AlgebraResult<()> {
+        // Create a simple 3x3 NURBS surface with varying weights.
+        let coefficients = vec![
+            vec![
+                Point::unit_z() * EFloat64::from(1.0),
+                Point::unit_z() * EFloat64::from(2.0),
+                Point::unit_z() * EFloat64::from(3.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(4.0),
+                Point::unit_z() * EFloat64::from(5.0),
+                Point::unit_z() * EFloat64::from(6.0),
+            ],
+            vec![
+                Point::unit_z() * EFloat64::from(7.0),
+                Point::unit_z() * EFloat64::from(8.0),
+                Point::unit_z() * EFloat64::from(9.0),
+            ],
+        ];
+        let weights = vec![
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(2.0),
+                EFloat64::from(1.0),
+            ],
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(3.0),
+                EFloat64::from(1.0),
+            ],
+            vec![
+                EFloat64::from(1.0),
+                EFloat64::from(2.0),
+                EFloat64::from(1.0),
+            ],
+        ];
+
+        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
+        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+        let surface =
+            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
+        println!("Original surface: {}", surface);
+
+        // Insert a knot at u = 1.0
+        let t = EFloat64::from(1.0);
+        let surface2 = surface.insert_knot_u(t.clone())?;
+        println!("Surface after inserting knot u at {}: {}", t, surface2);
+
+        // Check that evaluation remains the same after knot insertion.
+        // We test at various points in the parameter domain.
+        for i in 0..=100 {
+            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            for j in 0..=100 {
+                let v_val = EFloat64::from(j as f64 / 100.0);
+                let orig = surface.eval(u_val.clone(), v_val.clone());
+                let new = surface2.eval(u_val.clone(), v_val.clone());
+                assert_eq!(orig, new, "Mismatch at (u,v)=({}, {})", u_val, v_val);
+            }
+        }
+
+        // Verify that the knot vector was updated correctly
+        assert_eq!(
+            surface2.knot_vector_u.len(),
+            surface.knot_vector_u.len() + 1
+        );
+        assert!(surface2.knot_vector_u.contains(&t));
+
+        // Verify that the control net and weights were updated correctly
+        assert_eq!(surface2.coefficients.len(), surface.coefficients.len() + 1);
+        assert_eq!(surface2.weights.len(), surface.weights.len() + 1);
+
         Ok(())
     }
 }
