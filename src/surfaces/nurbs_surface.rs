@@ -5,6 +5,7 @@ use crate::{
     curves::nurbs_curve::NurbsCurve,
     primitives::nurb_helper_point::NurbHelperPoint,
     primitives::{convex_hull::ConvexHull, efloat::EFloat64, point::Point},
+    surfaces::surface_like::SurfaceLike,
 };
 
 /// A NURBS (Non-Uniform Rational B-Spline) surface defined as a tensor product of NURBS basis functions.
@@ -332,7 +333,7 @@ impl NurbsSurface {
     /// degree_u+1 (i.e. a break point) then splits the control net, weights, and u knot vector.
     ///
     /// The v–direction remains unchanged.
-    pub fn subdivide_u(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
+    fn subdivide_u_impl(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
         let p = self.degree_u;
 
         if t < self.knot_vector_u[p] || t > self.knot_vector_u[self.knot_vector_u.len() - p - 1] {
@@ -394,7 +395,7 @@ impl NurbsSurface {
     /// degree_v+1 (i.e. a break point) then splits the control net, weights, and v knot vector.
     ///
     /// The u–direction remains unchanged.
-    pub fn subdivide_v(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
+    fn subdivide_v_impl(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
         let p = self.degree_v;
 
         if t < self.knot_vector_v[p] || t > self.knot_vector_v[self.knot_vector_v.len() - p - 1] {
@@ -465,7 +466,7 @@ impl NurbsSurface {
     /// each control point by its weight and augmenting with the weight), then applying the two–step
     /// de Boor algorithm (first along the v–direction for each row, then along the u–direction),
     /// and finally converting back to Euclidean space.
-    pub fn eval(&self, u: EFloat64, v: EFloat64) -> Point {
+    pub fn eval_impl(&self, u: EFloat64, v: EFloat64) -> Point {
         let k_u = match self.find_span_u(u.clone()) {
             Some(span) => span,
             None => return Point::zero(),
@@ -688,6 +689,54 @@ impl NurbsSurface {
     /// Returns the convex hull of the control points of the NURBS surface.
     /// This is the smallest convex set containing all control points.
     pub fn get_convex_hull(&self) -> AlgebraResult<ConvexHull> {
+        // Flatten the 2D control points array into a 1D vector
+        let points: Vec<Point> = self
+            .coefficients
+            .iter()
+            .flat_map(|row| row.iter().cloned())
+            .collect();
+
+        // Use the existing ConvexHull implementation
+        ConvexHull::try_new(points)
+    }
+}
+
+impl SurfaceLike for NurbsSurface {
+    fn u_span(&self) -> (EFloat64, EFloat64) {
+        (
+            self.knot_vector_u[self.degree_u].clone(),
+            self.knot_vector_u[self.knot_vector_u.len() - self.degree_u - 1].clone(),
+        )
+    }
+
+    fn v_span(&self) -> (EFloat64, EFloat64) {
+        (
+            self.knot_vector_v[self.degree_v].clone(),
+            self.knot_vector_v[self.knot_vector_v.len() - self.degree_v - 1].clone(),
+        )
+    }
+
+    fn eval(&self, u: EFloat64, v: EFloat64) -> Point {
+        self.eval_impl(u, v)
+    }
+
+    fn subdivide_u(
+        &self,
+        t: EFloat64,
+    ) -> AlgebraResult<(Box<dyn SurfaceLike>, Box<dyn SurfaceLike>)> {
+        let (left, right) = self.subdivide_u_impl(t)?;
+        Ok((Box::new(left), Box::new(right)))
+    }
+
+    fn subdivide_v(
+        &self,
+        t: EFloat64,
+    ) -> AlgebraResult<(Box<dyn SurfaceLike>, Box<dyn SurfaceLike>)> {
+        let (left, right) = self.subdivide_v_impl(t)?;
+        Ok((Box::new(left), Box::new(right)))
+    }
+
+    fn get_convex_hull(&self) -> AlgebraResult<ConvexHull> {
         // Flatten the 2D control points array into a 1D vector
         let points: Vec<Point> = self
             .coefficients
@@ -965,7 +1014,7 @@ mod tests {
 
     #[test]
     fn test_subdivide_u() -> AlgebraResult<()> {
-        // Create a simple 3x3 NURBS surface with varying weights
+        // Create a simple 3x3 NURBS surface with varying weights.
         let coefficients = vec![
             vec![
                 Point::unit_z() * EFloat64::from(1.0),
@@ -1049,8 +1098,10 @@ mod tests {
         }
 
         // Verify that the knot vectors were updated correctly
-        assert!(left.knot_vector_u.contains(&t));
-        assert!(right.knot_vector_u.contains(&t));
+        let (left_min_u, left_max_u) = left.u_span();
+        let (right_min_u, right_max_u) = right.u_span();
+        assert!(left_min_u <= t && t <= left_max_u);
+        assert!(right_min_u <= t && t <= right_max_u);
 
         Ok(())
     }
@@ -1185,7 +1236,7 @@ mod tests {
         for i in 0..=100 {
             let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
             for j in 0..=50 {
-                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0); // Scale to [0,2] domain
+                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0);
                 if v_val < t {
                     let orig = surface.eval(u_val.clone(), v_val.clone());
                     let new = left.eval(u_val.clone(), v_val.clone());
@@ -1202,7 +1253,7 @@ mod tests {
         for i in 0..=100 {
             let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
             for j in 51..=100 {
-                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0); // Scale to [0,2] domain
+                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0);
                 if v_val > t {
                     let orig = surface.eval(u_val.clone(), v_val.clone());
                     let new = right.eval(u_val.clone(), v_val.clone());
@@ -1216,8 +1267,10 @@ mod tests {
         }
 
         // Verify that the knot vectors were updated correctly
-        assert!(left.knot_vector_v.contains(&t));
-        assert!(right.knot_vector_v.contains(&t));
+        let (left_min_v, left_max_v) = left.v_span();
+        let (right_min_v, right_max_v) = right.v_span();
+        assert!(left_min_v <= t && t <= left_max_v);
+        assert!(right_min_v <= t && t <= right_max_v);
 
         Ok(())
     }
