@@ -25,6 +25,14 @@ impl Point {
         }
     }
 
+    pub fn union(self, other: Point) -> Point {
+        Point::new(
+            EFloat64::new_union_efloat(self.x, other.x),
+            EFloat64::new_union_efloat(self.y, other.y),
+            EFloat64::new_union_efloat(self.z, other.z),
+        )
+    }
+
     pub fn norm_sq(self) -> EFloat64 {
         self.x * self.x + self.y * self.y + self.z * self.z
     }

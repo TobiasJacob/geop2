@@ -1,19 +1,87 @@
 use crate::{
-    algebra_error::AlgebraResult, curves::nurbs_curve::NurbsCurve, primitives::point::Point,
+    algebra_error::AlgebraResult,
+    curves::{curve_like::CurveLike, nurbs_curve::NurbsCurve},
+    primitives::{efloat::EFloat64, point::Point},
 };
 
 pub enum CurveCurveIntersection {
     Overlap(NurbsCurve),
-    Point(Point),
+    Points(Vec<Point>),
+}
+
+fn curve_curve_intersection_non_overlap(
+    curve1: &NurbsCurve,
+    curve2: &NurbsCurve,
+) -> AlgebraResult<Vec<Point>> {
+    println!("--------------------------------");
+    println!("curve1: {}", curve1);
+    println!("curve2: {}", curve2);
+
+    if !curve1
+        .control_polygon_hull()?
+        .intersects(&curve2.control_polygon_hull()?)
+    {
+        return Ok(Vec::new());
+    }
+
+    let curve1_span = curve1.span()?;
+    let curve2_span = curve2.span()?;
+
+    if curve1_span.0 >= curve1_span.1 - EFloat64::from(0.001) {
+        let p = curve1.control_polygon_hull()?.to_point();
+        println!("p: {:?}", p);
+        return Ok(vec![p]);
+    }
+
+    if curve2_span.0 >= curve2_span.1 - EFloat64::from(0.001) {
+        let p = curve2.control_polygon_hull()?.to_point();
+        println!("p: {:?}", p);
+        return Ok(vec![p]);
+    }
+
+    let (curve1a, curve1b) = curve1.split()?;
+    let (curve2a, curve2b) = curve2.split()?;
+
+    println!("curve1a: {}", curve1a);
+    println!("curve1b: {}", curve1b);
+    println!("curve2a: {}", curve2a);
+    println!("curve2b: {}", curve2b);
+
+    let mut intersections = Vec::new();
+    intersections.extend(curve_curve_intersection_non_overlap(&curve1a, &curve2a)?);
+    intersections.extend(curve_curve_intersection_non_overlap(&curve1a, &curve2b)?);
+    intersections.extend(curve_curve_intersection_non_overlap(&curve1b, &curve2a)?);
+    intersections.extend(curve_curve_intersection_non_overlap(&curve1b, &curve2b)?);
+
+    // check if any of the intersections are the same point and if yes, unify them
+    let mut intersection_result = Vec::new();
+    for intersection in intersections {
+        let index = intersection_result
+            .iter()
+            .position(|p: &Point| *p == intersection);
+        match index {
+            Some(index) => {
+                println!(
+                    "union between: {} and {}",
+                    intersection_result[index], intersection
+                );
+                intersection_result[index] = intersection_result[index].union(intersection);
+            }
+            None => {
+                intersection_result.push(intersection);
+            }
+        }
+    }
+
+    Ok(intersection_result)
 }
 
 pub fn curve_curve_intersection(
     curve1: NurbsCurve,
     curve2: NurbsCurve,
 ) -> AlgebraResult<CurveCurveIntersection> {
-    // Check if the curves are the same
-
-    todo!()
+    let intersections = curve_curve_intersection_non_overlap(&curve1, &curve2)?;
+    Ok(CurveCurveIntersection::Points(intersections))
 }
 
 // test cases
@@ -57,11 +125,20 @@ mod tests {
         let mut scene = PrimitiveScene::new();
         scene.add_curve(&curve1, Color10::Red)?;
         scene.add_curve(&curve2, Color10::Blue)?;
-        scene.save_to_file("test_outputs/curve_curve_intersection.html")?;
 
         // Test intersection
-        // let intersection = curve_curve_intersection(curve1, curve2)?;
-        // assert!(matches!(intersection, CurveCurveIntersection::Overlap(_)));
+        let intersection = curve_curve_intersection(curve1, curve2)?;
+
+        match intersection {
+            CurveCurveIntersection::Overlap(_curve) => {}
+            CurveCurveIntersection::Points(points) => {
+                for point in points {
+                    scene.add_point(point, Color10::Green);
+                }
+            }
+        }
+
+        scene.save_to_file("test_outputs/curve_curve_intersection.html")?;
 
         Ok(())
     }

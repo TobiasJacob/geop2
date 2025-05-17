@@ -45,6 +45,19 @@ impl EFloat64 {
         )
     }
 
+    pub fn new_union_efloat(value1: Self, value2: Self) -> Self {
+        EFloat64::new(
+            value1
+                .upper_bound
+                .max(value2.upper_bound)
+                .next_after(f64::INFINITY),
+            value1
+                .lower_bound
+                .min(value2.lower_bound)
+                .next_after(f64::NEG_INFINITY),
+        )
+    }
+
     pub fn zero() -> Self {
         EFloat64::new(0.0, 0.0)
     }

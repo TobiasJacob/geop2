@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use crate::algebra_error::{AlgebraError, WithContext};
 use crate::primitives::point::Point;
 use crate::{algebra_error::AlgebraResult, primitives::efloat::EFloat64};
 
@@ -13,10 +14,22 @@ pub struct TriangleFace {
 
 impl TriangleFace {
     pub fn try_new(a: Point, b: Point, c: Point) -> AlgebraResult<TriangleFace> {
+        let context = |err: AlgebraError| {
+            err.with_context(format!(
+                "Creating traingle with points: {}, {}, {}",
+                &a, &b, &c
+            ))
+        };
+
+        if a == b || b == c || c == a {
+            return Err(AlgebraError::new("a, b, c must be distinct points".into()))
+                .with_context(&context);
+        }
+
         // Calculate the normal direction using the cross product.
         let ab = b - a;
         let ac = c - a;
-        let normal = ab.cross(ac).normalize()?;
+        let normal = ab.cross(ac).normalize().with_context(&context)?;
         Ok(TriangleFace { a, b, c, normal })
     }
 

@@ -133,7 +133,7 @@ impl NurbsCurve {
         // Determine the current multiplicity of t in the knot vector.
         let current_multiplicity = self.knot_vector.iter().filter(|&knot| *knot == t).count();
         // To split the curve, t must appear with multiplicity p+1.
-        let r = p - current_multiplicity;
+        let r = p - current_multiplicity + 1;
         let mut curve = self.clone();
         for _ in 0..r {
             curve = curve.insert_knot(t.clone())?;
@@ -151,9 +151,9 @@ impl NurbsCurve {
         };
 
         // The left segment uses control points and weights from 0 to (t_index - p) and knot vector from 0 to t_index.
-        let left_ctrl_pts = curve.coefficients[..=(t_index - p)].to_vec();
-        let left_weights = curve.weights[..=(t_index - p)].to_vec();
-        let left_knots = curve.knot_vector[..=t_index + 1].to_vec();
+        let left_ctrl_pts = curve.coefficients[..=(t_index - p - 1)].to_vec();
+        let left_weights = curve.weights[..=(t_index - p - 1)].to_vec();
+        let left_knots = curve.knot_vector[..=t_index].to_vec();
         let left_curve = NurbsCurve::try_new(left_ctrl_pts, left_weights, left_knots, p)?;
 
         // The right segment uses control points and weights from (t_index - p) to end and knot vector from t_index to end.
@@ -318,12 +318,25 @@ impl NurbsCurve {
 }
 
 impl CurveLike for NurbsCurve {
+    fn span(&self) -> AlgebraResult<(EFloat64, EFloat64)> {
+        Ok((
+            self.knot_vector[0].clone(),
+            self.knot_vector[self.knot_vector.len() - 1].clone(),
+        ))
+    }
+
     fn eval(&self, t: EFloat64) -> Point {
         self.eval_impl(t)
     }
 
     fn subdivide(&self, t: EFloat64) -> AlgebraResult<(Self, Self)> {
         self.subdivide_impl(t)
+    }
+
+    fn split(&self) -> AlgebraResult<(Self, Self)> {
+        let t_range = self.knot_vector[self.knot_vector.len() - 1] - self.knot_vector[0];
+        let t = self.knot_vector[0] + (t_range / EFloat64::from(2.0)).unwrap_or(EFloat64::zero());
+        self.subdivide(t)
     }
 
     fn control_polygon_hull(&self) -> AlgebraResult<ConvexHull> {
@@ -337,6 +350,11 @@ impl Display for NurbsCurve {
         for coeff in self.coefficients.iter() {
             write!(f, "{}, ", coeff)?;
         }
+        write!(f, "[")?;
+        for knot in self.knot_vector.iter() {
+            write!(f, "{}, ", knot)?;
+        }
+        write!(f, "]")?;
         write!(f, ")")
     }
 }

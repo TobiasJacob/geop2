@@ -4,11 +4,19 @@ use crate::primitives::efloat::EFloat64;
 use crate::primitives::point::Point;
 
 pub trait CurveLike {
+    // Parameter span
+    fn span(&self) -> AlgebraResult<(EFloat64, EFloat64)>;
+
     /// Evaluates the curve at parameter t.
     fn eval(&self, t: EFloat64) -> Point;
 
     /// Subdivides the curve at parameter t into two new curve segments.
     fn subdivide(&self, t: EFloat64) -> AlgebraResult<(Self, Self)>
+    where
+        Self: Sized;
+
+    // Split in middle
+    fn split(&self) -> AlgebraResult<(Self, Self)>
     where
         Self: Sized;
 

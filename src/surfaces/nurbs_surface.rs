@@ -159,8 +159,15 @@ impl NurbsSurface {
         if t < knot_vector[0] {
             return None;
         }
-        if t >= knot_vector[knot_vector.len() - 1] {
+        if t > knot_vector[knot_vector.len() - 1] {
             return None;
+        }
+        if t == knot_vector[knot_vector.len() - 1] {
+            let mut span = knot_vector.len() - 1;
+            while knot_vector[span] == t {
+                span -= 1;
+            }
+            return Some(span);
         }
         let mut span = 0;
         while !(knot_vector[span] <= t && t < knot_vector[span + 1]) {
