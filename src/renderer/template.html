@@ -60,11 +60,19 @@
         // Create points
         const pointsGeometry = new THREE.BufferGeometry();
         if (pointsData.length > 0) {
-            pointsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pointsData, 3));
+            const positions = [];
+            const colors = [];
+            pointsData.forEach(([x, y, z, color]) => {
+                positions.push(x, y, z);
+                const threeColor = new THREE.Color(color);
+                colors.push(threeColor.r, threeColor.g, threeColor.b);
+            });
+            pointsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            pointsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
         }
         const pointsMaterial = new THREE.PointsMaterial({
-            color: 0xff0000,
-            size: 0.1
+            size: 0.1,
+            vertexColors: true
         });
         const points = new THREE.Points(pointsGeometry, pointsMaterial);
         scene.add(points);
@@ -72,20 +80,40 @@
         // Create lines
         const linesGeometry = new THREE.BufferGeometry();
         if (linesData.length > 0) {
-            linesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(linesData, 3));
+            const positions = [];
+            const colors = [];
+            linesData.forEach(([x1, y1, z1, x2, y2, z2, color]) => {
+                positions.push(x1, y1, z1, x2, y2, z2);
+                const threeColor = new THREE.Color(color);
+                colors.push(threeColor.r, threeColor.g, threeColor.b, threeColor.r, threeColor.g, threeColor.b);
+            });
+            linesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            linesGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
         }
-        const linesMaterial = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+        const linesMaterial = new THREE.LineBasicMaterial({ vertexColors: true });
         const lines = new THREE.LineSegments(linesGeometry, linesMaterial);
         scene.add(lines);
 
         // Create triangles
         const trianglesGeometry = new THREE.BufferGeometry();
         if (trianglesData.length > 0) {
-            trianglesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(trianglesData, 3));
+            const positions = [];
+            const colors = [];
+            trianglesData.forEach(([x1, y1, z1, x2, y2, z2, x3, y3, z3, color]) => {
+                positions.push(x1, y1, z1, x2, y2, z2, x3, y3, z3);
+                const threeColor = new THREE.Color(color);
+                colors.push(
+                    threeColor.r, threeColor.g, threeColor.b,
+                    threeColor.r, threeColor.g, threeColor.b,
+                    threeColor.r, threeColor.g, threeColor.b
+                );
+            });
+            trianglesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            trianglesGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
             trianglesGeometry.computeVertexNormals();
         }
         const trianglesMaterial = new THREE.MeshPhongMaterial({
-            color: 0x0000ff,
+            vertexColors: true,
             side: THREE.DoubleSide
         });
         const triangles = new THREE.Mesh(trianglesGeometry, trianglesMaterial);
@@ -106,6 +134,7 @@
 
         // Handle window resize
         window.addEventListener('resize', onWindowResize, false);
+
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();

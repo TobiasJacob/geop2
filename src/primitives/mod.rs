@@ -1,3 +1,4 @@
+pub mod color;
 pub mod convex_hull;
 pub mod efloat;
 pub mod intersecting;
