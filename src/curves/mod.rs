@@ -6,4 +6,5 @@ pub mod bspline_curve;
 // pub mod helix;
 // pub mod line;
 // pub mod monomial_polynom;
+pub mod curve_like;
 pub mod nurbs_curve;

@@ -16,16 +16,14 @@ pub trait SurfaceLike: Display {
     fn eval(&self, u: EFloat64, v: EFloat64) -> Point;
 
     /// Subdivides the surface along the u–direction at parameter `t` into two new surface segments.
-    fn subdivide_u(
-        &self,
-        t: EFloat64,
-    ) -> AlgebraResult<(Box<dyn SurfaceLike>, Box<dyn SurfaceLike>)>;
+    fn subdivide_u(&self, t: EFloat64) -> AlgebraResult<(Self, Self)>
+    where
+        Self: Sized;
 
     /// Subdivides the surface along the v–direction at parameter `t` into two new surface segments.
-    fn subdivide_v(
-        &self,
-        t: EFloat64,
-    ) -> AlgebraResult<(Box<dyn SurfaceLike>, Box<dyn SurfaceLike>)>;
+    fn subdivide_v(&self, t: EFloat64) -> AlgebraResult<(Self, Self)>
+    where
+        Self: Sized;
 
     /// Returns the convex hull of the control points of the surface.
     /// This is the smallest convex set containing all control points.

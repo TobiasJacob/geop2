@@ -7,11 +7,11 @@ use crate::{
 };
 
 use super::{
+    CurveLike,
     circle::{Circle, CircleTransform},
     ellipse::Ellipse,
     helix::Helix,
     line::Line,
-    CurveLike,
 };
 
 #[derive(Debug, Clone, PartialEq)]

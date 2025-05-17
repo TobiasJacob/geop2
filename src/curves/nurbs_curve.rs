@@ -7,6 +7,7 @@ use crate::primitives::nurb_helper_point::NurbHelperPoint;
 use crate::primitives::point::Point;
 
 use super::bspline_curve::BSplineCurve;
+use super::curve_like::CurveLike;
 
 /// A NURBS (Non-Uniform Rational B-Spline) curve.
 ///
@@ -112,7 +113,7 @@ impl NurbsCurve {
     /// The method first inserts `t` repeatedly until its multiplicity equals degree+1 (i.e. a break point).
     /// Then it splits the control net and knot vector into a left segment (defined over [a, t])
     /// and a right segment (defined over [t, b]).
-    pub fn subdivide(&self, t: EFloat64) -> AlgebraResult<(Self, Self)> {
+    pub fn subdivide_impl(&self, t: EFloat64) -> AlgebraResult<(Self, Self)> {
         let p = self.degree;
 
         // Ensure t lies within the valid parameter domain.
@@ -259,9 +260,7 @@ impl NurbsCurve {
         numerator / denominator
     }
 
-    pub fn eval(&self, t: EFloat64) -> Point {
-        // return self.eval_slow(t).unwrap_or(T::zero());
-
+    pub fn eval_impl(&self, t: EFloat64) -> Point {
         let k = match self.find_span(t) {
             Some(span) => span,
             None => return Point::zero(),
@@ -308,6 +307,20 @@ impl NurbsCurve {
         }
         let dh = d[p].clone();
         dh.to_point().unwrap_or(Point::zero())
+    }
+}
+
+impl CurveLike for NurbsCurve {
+    fn eval(&self, t: EFloat64) -> Point {
+        self.eval_impl(t)
+    }
+
+    fn subdivide(&self, t: EFloat64) -> AlgebraResult<(Self, Self)> {
+        self.subdivide_impl(t)
+    }
+
+    fn control_polygon_hull(&self) -> AlgebraResult<ConvexHull> {
+        self.control_polygon_hull()
     }
 }
 

@@ -720,20 +720,14 @@ impl SurfaceLike for NurbsSurface {
         self.eval_impl(u, v)
     }
 
-    fn subdivide_u(
-        &self,
-        t: EFloat64,
-    ) -> AlgebraResult<(Box<dyn SurfaceLike>, Box<dyn SurfaceLike>)> {
+    fn subdivide_u(&self, t: EFloat64) -> AlgebraResult<(Self, Self)> {
         let (left, right) = self.subdivide_u_impl(t)?;
-        Ok((Box::new(left), Box::new(right)))
+        Ok((left, right))
     }
 
-    fn subdivide_v(
-        &self,
-        t: EFloat64,
-    ) -> AlgebraResult<(Box<dyn SurfaceLike>, Box<dyn SurfaceLike>)> {
+    fn subdivide_v(&self, t: EFloat64) -> AlgebraResult<(Self, Self)> {
         let (left, right) = self.subdivide_v_impl(t)?;
-        Ok((Box::new(left), Box::new(right)))
+        Ok((left, right))
     }
 
     fn get_convex_hull(&self) -> AlgebraResult<ConvexHull> {
@@ -788,6 +782,7 @@ impl Display for NurbsSurface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::curves::curve_like::CurveLike;
     use crate::primitives::efloat::EFloat64;
     use crate::primitives::point::Point;
 
