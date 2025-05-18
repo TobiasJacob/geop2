@@ -1,9 +1,11 @@
+use std::fmt::Display;
+
 use crate::algebra_error::AlgebraResult;
 use crate::primitives::convex_hull::ConvexHull;
 use crate::primitives::efloat::EFloat64;
 use crate::primitives::point::Point;
 
-pub trait CurveLike {
+pub trait CurveLike: Display {
     // Parameter span
     fn span(&self) -> AlgebraResult<(EFloat64, EFloat64)>;
 

@@ -170,6 +170,9 @@ impl EFloat64 {
     pub fn square(&self) -> EFloat64 {
         let s_u = self.upper_bound * self.upper_bound;
         let s_l = self.lower_bound * self.lower_bound;
+        if *self == 0.0 {
+            return EFloat64::new(s_u.max(s_l).next_after(f64::INFINITY), 0.0);
+        }
         EFloat64::new(
             s_u.max(s_l).next_after(f64::INFINITY),
             s_u.min(s_l).next_after(f64::NEG_INFINITY),

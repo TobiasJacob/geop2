@@ -75,25 +75,39 @@ impl ConvexHull {
                 unique_points[1],
             )?)),
             3 => {
+                // println!("unique_points0: {:?}", unique_points[0]);
+                // println!("unique_points1: {:?}", unique_points[1]);
+                // println!("unique_points2: {:?}", unique_points[2]);
                 // Make sure the points are not collinear.
                 let cross = (unique_points[1] - unique_points[0])
                     .cross(unique_points[2] - unique_points[0]);
                 if cross.norm() == 0.0 {
-                    // check which one is the farthest from the other two
-                    let d1 = (unique_points[0] - unique_points[1]).norm();
-                    let d2 = (unique_points[0] - unique_points[2]).norm();
-                    let d3 = (unique_points[1] - unique_points[2]).norm();
-                    if d1 > d2 && d1 > d3 {
-                        unique_points = vec![unique_points[0], unique_points[2]];
-                    } else if d2 > d3 {
-                        unique_points = vec![unique_points[0], unique_points[1]];
-                    } else {
-                        unique_points = vec![unique_points[1], unique_points[2]];
+                    let dir = unique_points[1] - unique_points[0];
+                    // println!("dir: {:?}", dir);
+                    let mut help_vector = Point::unit_x();
+                    if dir.dot(Point::unit_y()) < dir.dot(help_vector) {
+                        help_vector = Point::unit_y();
                     }
-                    return Ok(Self::Line(Line::try_new(
-                        unique_points[0],
-                        unique_points[1],
-                    )?));
+                    if dir.dot(Point::unit_z()) < dir.dot(help_vector) {
+                        help_vector = Point::unit_z();
+                    }
+                    // println!("help_vector: {:?}", help_vector);
+                    let normal = (unique_points[1] - unique_points[0]).cross(help_vector);
+
+                    // println!("normal: {:?}", normal);
+
+                    let normal = normal.normalize();
+                    // println!("normal: {:?}", normal);
+
+                    Ok(Self::Triangle(
+                        TriangleFace::try_new_with_normal(
+                            unique_points[0],
+                            unique_points[1],
+                            unique_points[2],
+                            normal?,
+                        )
+                        .with_context(&context)?,
+                    ))
                 } else {
                     Ok(Self::Triangle(
                         TriangleFace::try_new(unique_points[0], unique_points[1], unique_points[2])

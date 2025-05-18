@@ -6,4 +6,5 @@ pub mod line;
 pub mod nurb_helper_point;
 pub mod point;
 pub mod primitive_scene;
+pub mod primitive_scene_recorder;
 pub mod triangle;

@@ -1,7 +1,10 @@
 use crate::{
     algebra_error::AlgebraResult,
     curves::{curve_like::CurveLike, nurbs_curve::NurbsCurve},
-    primitives::{efloat::EFloat64, point::Point},
+    primitives::{
+        color::Color10, efloat::EFloat64, point::Point, primitive_scene::PrimitiveScene,
+        primitive_scene_recorder::PrimitiveSceneRecorder,
+    },
 };
 
 pub enum CurveCurveIntersection {
@@ -12,10 +15,27 @@ pub enum CurveCurveIntersection {
 fn curve_curve_intersection_non_overlap(
     curve1: &NurbsCurve,
     curve2: &NurbsCurve,
+    primitive_scene_recorder: &mut PrimitiveSceneRecorder,
 ) -> AlgebraResult<Vec<Point>> {
-    println!("--------------------------------");
+    // println!("--------------------------------");
     println!("curve1: {}", curve1);
     println!("curve2: {}", curve2);
+    // let mut scene = PrimitiveScene::new();
+    // scene.add_curve(curve1, Color10::Red)?;
+    // scene.add_curve(curve2, Color10::Blue)?;
+    // let cvx1 = curve1.control_polygon_hull()?;
+    // let cvx2 = curve2.control_polygon_hull()?;
+    // // if cvx1.is_err() {
+    // //     primitive_scene_recorder.add_scene(scene);
+    // //     return Ok(vec![curve1.coefficients[0]]);
+    // // }
+    // scene.add_convex_hull(cvx1, Color10::Red);
+    // // if cvx2.is_err() {
+    // //     primitive_scene_recorder.add_scene(scene);
+    // //     return Ok(vec![curve2.coefficients[0]]);
+    // // }
+    // scene.add_convex_hull(cvx2, Color10::Blue);
+    // primitive_scene_recorder.add_scene(scene);
 
     if !curve1
         .control_polygon_hull()?
@@ -26,61 +46,125 @@ fn curve_curve_intersection_non_overlap(
 
     let curve1_span = curve1.span()?;
     let curve2_span = curve2.span()?;
+    println!("curve1_span: {:?}", curve1_span.1 - curve1_span.0);
+    println!("curve2_span: {:?}", curve2_span.1 - curve2_span.0);
 
-    if curve1_span.0 >= curve1_span.1 - EFloat64::from(0.001) {
+    if curve1_span.0 >= curve1_span.1 - EFloat64::from(0.00001) {
         let p = curve1.control_polygon_hull()?.to_point();
         println!("p: {:?}", p);
         return Ok(vec![p]);
     }
 
-    if curve2_span.0 >= curve2_span.1 - EFloat64::from(0.001) {
+    if curve2_span.0 >= curve2_span.1 - EFloat64::from(0.00001) {
         let p = curve2.control_polygon_hull()?.to_point();
         println!("p: {:?}", p);
         return Ok(vec![p]);
     }
 
-    let (curve1a, curve1b) = curve1.split()?;
-    let (curve2a, curve2b) = curve2.split()?;
-
-    println!("curve1a: {}", curve1a);
-    println!("curve1b: {}", curve1b);
-    println!("curve2a: {}", curve2a);
-    println!("curve2b: {}", curve2b);
-
-    let mut intersections = Vec::new();
-    intersections.extend(curve_curve_intersection_non_overlap(&curve1a, &curve2a)?);
-    intersections.extend(curve_curve_intersection_non_overlap(&curve1a, &curve2b)?);
-    intersections.extend(curve_curve_intersection_non_overlap(&curve1b, &curve2a)?);
-    intersections.extend(curve_curve_intersection_non_overlap(&curve1b, &curve2b)?);
-
-    // check if any of the intersections are the same point and if yes, unify them
-    let mut intersection_result = Vec::new();
-    for intersection in intersections {
-        let index = intersection_result
-            .iter()
-            .position(|p: &Point| *p == intersection);
-        match index {
-            Some(index) => {
-                println!(
-                    "union between: {} and {}",
-                    intersection_result[index], intersection
-                );
-                intersection_result[index] = intersection_result[index].union(intersection);
+    // If the split was not successful, we have reached the limit of the precision of the efloat
+    if let Ok((curve1a, curve1b)) = curve1.split() {
+        if let Ok((curve2a, curve2b)) = curve2.split() {
+            let mut scene = PrimitiveScene::new();
+            scene.add_curve(&curve1a, Color10::Red)?;
+            scene.add_curve(&curve1b, Color10::Red)?;
+            scene.add_curve(&curve2a, Color10::Blue)?;
+            scene.add_curve(&curve2b, Color10::Blue)?;
+            if curve1a
+                .control_polygon_hull()?
+                .intersects(&curve2a.control_polygon_hull()?)
+            {
+                scene.add_convex_hull(curve1a.control_polygon_hull()?, Color10::Green);
+                scene.add_convex_hull(curve2a.control_polygon_hull()?, Color10::Green);
             }
-            None => {
-                intersection_result.push(intersection);
+            if curve1a
+                .control_polygon_hull()?
+                .intersects(&curve2b.control_polygon_hull()?)
+            {
+                scene.add_convex_hull(curve1a.control_polygon_hull()?, Color10::Olive);
+                scene.add_convex_hull(curve2b.control_polygon_hull()?, Color10::Olive);
             }
+
+            if curve1b
+                .control_polygon_hull()?
+                .intersects(&curve2a.control_polygon_hull()?)
+            {
+                scene.add_convex_hull(curve1b.control_polygon_hull()?, Color10::Cyan);
+                scene.add_convex_hull(curve2a.control_polygon_hull()?, Color10::Cyan);
+            }
+            if curve1b
+                .control_polygon_hull()?
+                .intersects(&curve2b.control_polygon_hull()?)
+            {
+                scene.add_convex_hull(curve1b.control_polygon_hull()?, Color10::Purple);
+                scene.add_convex_hull(curve2b.control_polygon_hull()?, Color10::Purple);
+            }
+            primitive_scene_recorder.add_scene(scene);
+            // println!("curve1a: {}", curve1a);
+            // println!("curve1b: {}", curve1b);
+            // println!("curve2a: {}", curve2a);
+            // println!("curve2b: {}", curve2b);
+
+            let mut intersections = Vec::new();
+            intersections.extend(curve_curve_intersection_non_overlap(
+                &curve1a,
+                &curve2a,
+                primitive_scene_recorder,
+            )?);
+            intersections.extend(curve_curve_intersection_non_overlap(
+                &curve1a,
+                &curve2b,
+                primitive_scene_recorder,
+            )?);
+            intersections.extend(curve_curve_intersection_non_overlap(
+                &curve1b,
+                &curve2a,
+                primitive_scene_recorder,
+            )?);
+            intersections.extend(curve_curve_intersection_non_overlap(
+                &curve1b,
+                &curve2b,
+                primitive_scene_recorder,
+            )?);
+
+            // check if any of the intersections are the same point and if yes, unify them
+            let mut intersection_result = Vec::new();
+            for intersection in intersections {
+                let index = intersection_result
+                    .iter()
+                    .position(|p: &Point| *p == intersection);
+                match index {
+                    Some(index) => {
+                        println!(
+                            "union between: {} and {}",
+                            intersection_result[index], intersection
+                        );
+                        intersection_result[index] = intersection_result[index].union(intersection);
+                    }
+                    None => {
+                        intersection_result.push(intersection);
+                    }
+                }
+            }
+            return Ok(intersection_result);
         }
+        let p = curve2.control_polygon_hull()?.to_point();
+        println!("p: {:?}", p);
+        return Ok(vec![p]);
     }
-
-    Ok(intersection_result)
+    let p = curve1.control_polygon_hull()?.to_point();
+    println!("p: {:?}", p);
+    return Ok(vec![p]);
 }
 
 pub fn curve_curve_intersection(
     curve1: NurbsCurve,
     curve2: NurbsCurve,
 ) -> AlgebraResult<CurveCurveIntersection> {
-    let intersections = curve_curve_intersection_non_overlap(&curve1, &curve2)?;
+    let mut primitive_scene_recorder = PrimitiveSceneRecorder::new();
+    let intersections =
+        curve_curve_intersection_non_overlap(&curve1, &curve2, &mut primitive_scene_recorder);
+    primitive_scene_recorder.save_to_folder("test_outputs/curve_curve_intersection")?;
+    let intersections = intersections?;
     Ok(CurveCurveIntersection::Points(intersections))
 }
 
@@ -134,6 +218,7 @@ mod tests {
             CurveCurveIntersection::Points(points) => {
                 for point in points {
                     scene.add_point(point, Color10::Green);
+                    println!("point: {:?}", point);
                 }
             }
         }

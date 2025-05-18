@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::algebra_error::AlgebraResult;
+use crate::algebra_error::{AlgebraError, AlgebraResult, WithContext};
 use crate::primitives::point::Point;
 
 /// A line segment in 3D space defined by its start and end points.
@@ -14,8 +14,14 @@ impl Line {
     /// Creates a new line segment from two points.
     /// Returns an error if the points are equal.
     pub fn try_new(start: Point, end: Point) -> AlgebraResult<Self> {
+        let context =
+            |err: AlgebraError| err.with_context(format!("creating line: {} -> {}", start, end));
+
         if start == end {
-            return Err("Cannot create a line segment with equal start and end points".into());
+            return Err(AlgebraError::new(
+                "Cannot create a line segment with equal start and end points".into(),
+            ))
+            .with_context(&context);
         }
         Ok(Self { start, end })
     }

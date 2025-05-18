@@ -34,7 +34,7 @@ impl Point {
     }
 
     pub fn norm_sq(self) -> EFloat64 {
-        self.x * self.x + self.y * self.y + self.z * self.z
+        self.x.square() + self.y.square() + self.z.square()
     }
 
     pub fn norm(self) -> EFloat64 {

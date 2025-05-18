@@ -6,15 +6,53 @@
     <style>
         body {
             margin: 0;
+            background-color: #1a1a1a;
         }
 
         canvas {
             display: block;
         }
+
+        .navigation {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .nav-button {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .nav-button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .nav-button:hover:not(:disabled) {
+            background: #45a049;
+        }
     </style>
 </head>
 
 <body>
+    <div class="navigation" id="navigation" style="display: none;">
+        <button class="nav-button" id="prevButton">Previous Scene</button>
+        <span id="sceneInfo" style="color: white; line-height: 32px;"></span>
+        <button class="nav-button" id="nextButton">Next Scene</button>
+    </div>
     <script type="importmap">
         {
             "imports": {
@@ -24,6 +62,43 @@
         }
     </script>
     <script type="module">
+        // Set background color immediately
+        document.body.style.backgroundColor = '#1a1a1a';
+
+        function setupNavigation() {
+            const navigation = document.getElementById('navigation');
+            const prevButton = document.getElementById('prevButton');
+            const nextButton = document.getElementById('nextButton');
+            const sceneInfo = document.getElementById('sceneInfo');
+
+            const currentPath = window.location.pathname;
+            const match = currentPath.match(/scene_(\d+)\.html$/);
+
+            if (match) {
+                const currentScene = parseInt(match[1]);
+                navigation.style.display = 'flex';
+
+                sceneInfo.textContent = `Scene ${currentScene}`;
+
+                prevButton.onclick = () => {
+                    if (currentScene > 0) {
+                        window.location.href = `scene_${currentScene - 1}.html`;
+                    }
+                };
+
+                nextButton.onclick = () => {
+                    window.location.href = `scene_${currentScene + 1}.html`;
+                };
+
+                // Only disable previous button if we're on scene 0
+                prevButton.disabled = currentScene === 0;
+                // Always enable next button - browser will handle non-existent files
+                nextButton.disabled = false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', setupNavigation);
+
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         // Initialize arrays for geometry data
@@ -35,12 +110,12 @@
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x1a1a1a);
 
-        // Create camera
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 5;
-
-        // Create renderer
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        // Create renderer with background color set immediately
+        const renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: false // Ensure alpha is false to prevent transparency
+        });
+        renderer.setClearColor(0x1a1a1a, 1); // Set clear color immediately
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
@@ -118,6 +193,10 @@
         });
         const triangles = new THREE.Mesh(trianglesGeometry, trianglesMaterial);
         scene.add(triangles);
+
+        // Create camera
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
 
         // Add orbit controls
         const controls = new OrbitControls(camera, renderer.domElement);
