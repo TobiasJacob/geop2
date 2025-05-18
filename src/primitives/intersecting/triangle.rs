@@ -10,26 +10,26 @@ pub fn triangle_triangle_intersection(t1: &TriangleFace, t2: &TriangleFace) -> b
 
     // Check normal of t1
     let t1_normal = t1.normal;
-    if !project_triangles_onto_axis(t1, t2, &t1_normal) {
+    if !triangle_overlap_on_axis(t1, t2, &t1_normal) {
         return false;
     }
 
     // Check normal of t2
     let t2_normal = t2.normal;
-    if !project_triangles_onto_axis(t1, t2, &t2_normal) {
+    if !triangle_overlap_on_axis(t1, t2, &t2_normal) {
         return false;
     }
 
     // Check edges of t1
     for edge in t1_edges.iter() {
-        if !project_triangles_onto_axis(t1, t2, &edge.cross(t1_normal)) {
+        if !triangle_overlap_on_axis(t1, t2, &edge.cross(t1_normal)) {
             return false;
         }
     }
 
     // Check edges of t2
     for edge in t2_edges.iter() {
-        if !project_triangles_onto_axis(t1, t2, &edge.cross(t2_normal)) {
+        if !triangle_overlap_on_axis(t1, t2, &edge.cross(t2_normal)) {
             return false;
         }
     }
@@ -40,7 +40,7 @@ pub fn triangle_triangle_intersection(t1: &TriangleFace, t2: &TriangleFace) -> b
             let axis = t1_edge.cross(*t2_edge);
             if axis.norm_sq() > 0.0 {
                 // Avoid checking parallel edges
-                if !project_triangles_onto_axis(t1, t2, &axis) {
+                if !triangle_overlap_on_axis(t1, t2, &axis) {
                     return false;
                 }
             }
@@ -51,15 +51,20 @@ pub fn triangle_triangle_intersection(t1: &TriangleFace, t2: &TriangleFace) -> b
 }
 
 /// Projects both triangles onto the given axis and checks if their projections overlap
-fn project_triangles_onto_axis(t1: &TriangleFace, t2: &TriangleFace, axis: &Point) -> bool {
-    let (t1_min, t1_max) = project_triangle_onto_axis(t1, axis);
-    let (t2_min, t2_max) = project_triangle_onto_axis(t2, axis);
+fn triangle_overlap_on_axis(t1: &TriangleFace, t2: &TriangleFace, axis: &Point) -> bool {
+    // Here we sharpen the axis to avoid precision issues.
+    // This is fine, since we are checking for overlap, and as soon as we proofed that we found any seperating axis, we can return false.
+    // If we do not sharpen here, the seperating axis is so blurry that it might return a false positive.
+    let axis = axis.normalize().unwrap_or(Point::zero()).sharpen();
+
+    let (t1_min, t1_max) = project_triangle_onto_axis(t1, &axis);
+    let (t2_min, t2_max) = project_triangle_onto_axis(t2, &axis);
 
     // println!("axis: {}", axis);
     // println!("t1: {}", t1);
     // println!("t2: {}", t2);
-    // println!("t1_min: {}, t1_max: {}", t1_min, t1_max);
-    // println!("t2_min: {}, t2_max: {}", t2_min, t2_max);
+    // println!("t1_min: {:?}, t1_max: {:?}", t1_min, t1_max);
+    // println!("t2_min: {:?}, t2_max: {:?}", t2_min, t2_max);
 
     // Check if projections overlap
     // No overlap if one projection is entirely on one side of the other

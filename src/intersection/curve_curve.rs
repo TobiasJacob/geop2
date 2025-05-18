@@ -18,8 +18,8 @@ fn curve_curve_intersection_non_overlap(
     primitive_scene_recorder: &mut PrimitiveSceneRecorder,
 ) -> AlgebraResult<Vec<Point>> {
     // println!("--------------------------------");
-    println!("curve1: {}", curve1);
-    println!("curve2: {}", curve2);
+    // println!("curve1: {}", curve1);
+    // println!("curve2: {}", curve2);
     // let mut scene = PrimitiveScene::new();
     // scene.add_curve(curve1, Color10::Red)?;
     // scene.add_curve(curve2, Color10::Blue)?;
@@ -46,8 +46,8 @@ fn curve_curve_intersection_non_overlap(
 
     let curve1_span = curve1.span()?;
     let curve2_span = curve2.span()?;
-    println!("curve1_span: {:?}", curve1_span.1 - curve1_span.0);
-    println!("curve2_span: {:?}", curve2_span.1 - curve2_span.0);
+    // println!("curve1_span: {:?}", curve1_span.1 - curve1_span.0);
+    // println!("curve2_span: {:?}", curve2_span.1 - curve2_span.0);
 
     if curve1_span.0 >= curve1_span.1 - EFloat64::from(0.00001) {
         let p = curve1.control_polygon_hull()?.to_point();
@@ -65,10 +65,10 @@ fn curve_curve_intersection_non_overlap(
     if let Ok((curve1a, curve1b)) = curve1.split() {
         if let Ok((curve2a, curve2b)) = curve2.split() {
             let mut scene = PrimitiveScene::new();
-            scene.add_curve(&curve1a, Color10::Red)?;
-            scene.add_curve(&curve1b, Color10::Red)?;
-            scene.add_curve(&curve2a, Color10::Blue)?;
-            scene.add_curve(&curve2b, Color10::Blue)?;
+            scene.add_curve(&curve1a, Color10::Red);
+            scene.add_curve(&curve1b, Color10::Red);
+            scene.add_curve(&curve2a, Color10::Blue);
+            scene.add_curve(&curve2b, Color10::Blue);
             if curve1a
                 .control_polygon_hull()?
                 .intersects(&curve2a.control_polygon_hull()?)
@@ -76,7 +76,7 @@ fn curve_curve_intersection_non_overlap(
                 scene.add_convex_hull(curve1a.control_polygon_hull()?, Color10::Green);
                 scene.add_convex_hull(curve2a.control_polygon_hull()?, Color10::Green);
                 scene.add_debug_text(format!(
-                    "curve1a intersects curve2a\n{}\n{}",
+                    "curve1a intersects curve2a\n{:?}\n{:?}",
                     curve1a.control_polygon_hull()?,
                     curve2a.control_polygon_hull()?
                 ));
@@ -88,7 +88,7 @@ fn curve_curve_intersection_non_overlap(
                 scene.add_convex_hull(curve1a.control_polygon_hull()?, Color10::Olive);
                 scene.add_convex_hull(curve2b.control_polygon_hull()?, Color10::Olive);
                 scene.add_debug_text(format!(
-                    "curve1a intersects curve2b\n{}\n{}",
+                    "curve1a intersects curve2b\n{:?}\n{:?}",
                     curve1a.control_polygon_hull()?,
                     curve2b.control_polygon_hull()?
                 ));
@@ -101,7 +101,7 @@ fn curve_curve_intersection_non_overlap(
                 scene.add_convex_hull(curve1b.control_polygon_hull()?, Color10::Cyan);
                 scene.add_convex_hull(curve2a.control_polygon_hull()?, Color10::Cyan);
                 scene.add_debug_text(format!(
-                    "curve1b intersects curve2a\n{}\n{}",
+                    "curve1b intersects curve2a\n{:?}\n{:?}",
                     curve1b.control_polygon_hull()?,
                     curve2a.control_polygon_hull()?
                 ));
@@ -113,7 +113,7 @@ fn curve_curve_intersection_non_overlap(
                 scene.add_convex_hull(curve1b.control_polygon_hull()?, Color10::Purple);
                 scene.add_convex_hull(curve2b.control_polygon_hull()?, Color10::Purple);
                 scene.add_debug_text(format!(
-                    "curve1b intersects curve2b\n{}\n{}",
+                    "curve1b intersects curve2b\n{:?}\n{:?}",
                     curve1b.control_polygon_hull()?,
                     curve2b.control_polygon_hull()?
                 ));

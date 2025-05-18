@@ -351,6 +351,8 @@ impl Display for ConvexHull {
 
 #[cfg(test)]
 mod tests {
+    use crate::primitives::{color::Color10, primitive_scene::PrimitiveScene};
+
     use super::*;
 
     #[test]
@@ -418,6 +420,112 @@ mod tests {
         let hull4 = ConvexHull::try_new(points4)?;
         assert!(hull3.intersects(&hull4));
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_convex_hull_contains_point() -> AlgebraResult<()> {
+        // This is a test case from a bug report.
+        // Triangle(TriangleFace { a: Point { x: EFloat64 { upper_bound: 1.3932800294087713, lower_bound: 1.393280029184977 }, y: EFloat64 { upper_bound: 2.604064941615375, lower_bound: 2.6040649411971213 }, z: EFloat64 { upper_bound: 3.8e-322, lower_bound: -3.8e-322 } }, b: Point { x: EFloat64 { upper_bound: 1.395431518747287, lower_bound: 1.3954315183620858 }, y: EFloat64 { upper_bound: 2.6114807132510665, lower_bound: 2.6114807125301787 }, z: EFloat64 { upper_bound: 4e-322, lower_bound: -4e-322 } }, c: Point { x: EFloat64 { upper_bound: 1.397575378670314, lower_bound: 1.3975753781656213 }, y: EFloat64 { upper_bound: 2.618911743636742, lower_bound: 2.6189117426913784 }, z: EFloat64 { upper_bound: 3.95e-322, lower_bound: -3.95e-322 } }, normal: Point { x: EFloat64 { upper_bound: 3.3160315e-316, lower_bound: -3.3160315e-316 }, y: EFloat64 { upper_bound: 2.2106877e-316, lower_bound: -2.2106877e-316 }, z: EFloat64 { upper_bound: 1.0002491363304118, lower_bound: 0.9997509257258252 } } })
+        // Triangle(TriangleFace { a: Point { x: EFloat64 { upper_bound: 1.3948440552605827, lower_bound: 1.3948440550909778 }, y: EFloat64 { upper_bound: 2.6175003053349606, lower_bound: 2.6175003050165957 }, z: EFloat64 { upper_bound: 3.66e-322, lower_bound: -3.66e-322 } }, b: Point { x: EFloat64 { upper_bound: 1.4027709961799517, lower_bound: 1.4027709960075465 }, y: EFloat64 { upper_bound: 2.623474121254983, lower_bound: 2.6234741209325128 }, z: EFloat64 { upper_bound: 3.36e-322, lower_bound: -3.36e-322 } }, c: Point { x: EFloat64 { upper_bound: 1.4106445312513312, lower_bound: 1.410644531248669 }, y: EFloat64 { upper_bound: 2.6293945312524443, lower_bound: 2.629394531247554 }, z: EFloat64 { upper_bound: 2.08e-322, lower_bound: -2.08e-322 } }, normal: Point { x: EFloat64 { upper_bound: 2.842201e-316, lower_bound: -2.842201e-316 }, y: EFloat64 { upper_bound: 2.842201e-316, lower_bound: -2.842201e-316 }, z: EFloat64 { upper_bound: -0.9998295008771741, lower_bound: -1.0001705281993691 } } })
+
+        let points1 = vec![
+            Point::new(
+                EFloat64::new(1.3932800294087713, 1.393280029184977),
+                EFloat64::new(2.604064941615375, 2.6040649411971213),
+                EFloat64::new(3.8e-322, -3.8e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.395431518747287, 1.3954315183620858),
+                EFloat64::new(2.6114807132510665, 2.6114807125301787),
+                EFloat64::new(4e-322, -4e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.397575378670314, 1.3975753781656213),
+                EFloat64::new(2.618911743636742, 2.6189117426913784),
+                EFloat64::new(3.95e-322, -3.95e-322),
+            ),
+        ];
+        let points2 = vec![
+            Point::new(
+                EFloat64::new(1.3948440552605827, 1.3948440550909778),
+                EFloat64::new(2.6175003053349606, 2.6175003050165957),
+                EFloat64::new(3.66e-322, -3.66e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.4027709961799517, 1.4027709960075465),
+                EFloat64::new(2.623474121254983, 2.6234741209325128),
+                EFloat64::new(3.36e-322, -3.36e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.4106445312513312, 1.410644531248669),
+                EFloat64::new(2.6293945312524443, 2.629394531247554),
+                EFloat64::new(2.08e-322, -2.08e-322),
+            ),
+        ];
+        let hull1 = ConvexHull::try_new(points1)?;
+        let hull2 = ConvexHull::try_new(points2)?;
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_convex_hull(hull1.clone(), Color10::Red);
+        scene.add_convex_hull(hull2.clone(), Color10::Blue);
+        scene.add_debug_text(format!("hull1: {:?}\nhull2: {:?}", hull1, hull2));
+        scene.save_to_file("test_outputs/convex_hull_intersection.html")?;
+
+        assert!(!hull1.intersects(&hull2));
+        Ok(())
+    }
+
+    #[test]
+    fn test_convex_hull_contains_point_2() -> AlgebraResult<()> {
+        // From the bug report
+        // Triangle(TriangleFace { a: Point { x: EFloat64 { upper_bound: 1.3932800294087713, lower_bound: 1.393280029184977 }, y: EFloat64 { upper_bound: 2.604064941615375, lower_bound: 2.6040649411971213 }, z: EFloat64 { upper_bound: 3.8e-322, lower_bound: -3.8e-322 } }, b: Point { x: EFloat64 { upper_bound: 1.3934144989570727, lower_bound: 1.3934144957939014 }, y: EFloat64 { upper_bound: 2.6045284300804004, lower_bound: 2.604528424167641 }, z: EFloat64 { upper_bound: 4.3e-322, lower_bound: -4.3e-322 } }, c: Point { x: EFloat64 { upper_bound: 1.3935489401903076, lower_bound: 1.3935489311132478 }, y: EFloat64 { upper_bound: 2.6049919809307944, lower_bound: 2.604991963962083 }, z: EFloat64 { upper_bound: 4.8e-322, lower_bound: -4.8e-322 } }, normal: Point { x: EFloat64 { upper_bound: 9.21687771256e-313, lower_bound: -9.21687771256e-313 }, y: EFloat64 { upper_bound: 9.21687771256e-313, lower_bound: -9.21687771256e-313 }, z: EFloat64 { upper_bound: 1.7146220794916212, lower_bound: 0.583234012960121 } } })
+        // Triangle(TriangleFace { a: Point { x: EFloat64 { upper_bound: 1.3948440552605827, lower_bound: 1.3948440550909778 }, y: EFloat64 { upper_bound: 2.6175003053349606, lower_bound: 2.6175003050165957 }, z: EFloat64 { upper_bound: 3.66e-322, lower_bound: -3.66e-322 } }, b: Point { x: EFloat64 { upper_bound: 1.3953394896045759, lower_bound: 1.39533948836173 }, y: EFloat64 { upper_bound: 2.617873669836465, lower_bound: 2.617873667504838 }, z: EFloat64 { upper_bound: 4.15e-322, lower_bound: -4.15e-322 } }, c: Point { x: EFloat64 { upper_bound: 1.3958347158427575, lower_bound: 1.3958347125057804 }, y: EFloat64 { upper_bound: 2.6182468266786665, lower_bound: 2.618246820419867 }, z: EFloat64 { upper_bound: 4.64e-322, lower_bound: -4.64e-322 } }, normal: Point { x: EFloat64 { upper_bound: 6.94525881674e-313, lower_bound: -6.94525881674e-313 }, y: EFloat64 { upper_bound: 6.94525881674e-313, lower_bound: -6.94525881674e-313 }, z: EFloat64 { upper_bound: -0.7212477567747249, lower_bound: -1.3865042245782815 } } })
+
+        let points1 = vec![
+            Point::new(
+                EFloat64::new(1.3932800294087713, 1.393280029184977),
+                EFloat64::new(2.604064941615375, 2.6040649411971213),
+                EFloat64::new(3.8e-322, -3.8e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.3934144989570727, 1.3934144957939014),
+                EFloat64::new(2.6045284300804004, 2.604528424167641),
+                EFloat64::new(4.3e-322, -4.3e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.3935489401903076, 1.3935489311132478),
+                EFloat64::new(2.6049919809307944, 2.604991963962083),
+                EFloat64::new(4.8e-322, -4.8e-322),
+            ),
+        ];
+        let points2 = vec![
+            Point::new(
+                EFloat64::new(1.3948440552605827, 1.3948440550909778),
+                EFloat64::new(2.6175003053349606, 2.6175003050165957),
+                EFloat64::new(3.66e-322, -3.66e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.3953394896045759, 1.39533948836173),
+                EFloat64::new(2.617873669836465, 2.617873667504838),
+                EFloat64::new(4.15e-322, -4.15e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.3958347158427575, 1.3958347125057804),
+                EFloat64::new(2.6182468266786665, 2.618246820419867),
+                EFloat64::new(4.64e-322, -4.64e-322),
+            ),
+        ];
+        let hull1 = ConvexHull::try_new(points1)?;
+        let hull2 = ConvexHull::try_new(points2)?;
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_convex_hull(hull1.clone(), Color10::Red);
+        scene.add_convex_hull(hull2.clone(), Color10::Blue);
+        scene.add_debug_text(format!("hull1: {:?}\nhull2: {:?}", hull1, hull2));
+        scene.save_to_file("test_outputs/convex_hull_intersection_2.html")?;
+
+        assert!(!hull1.intersects(&hull2));
         Ok(())
     }
 }

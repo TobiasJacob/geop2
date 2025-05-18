@@ -260,6 +260,14 @@ impl EFloat64 {
     pub fn to_f64(&self) -> f64 {
         (self.upper_bound + self.lower_bound) / 2.0
     }
+
+    pub fn sharpen(&self) -> Self {
+        let mid = self.to_f64();
+        Self {
+            upper_bound: mid,
+            lower_bound: mid,
+        }
+    }
 }
 
 impl Neg for EFloat64 {

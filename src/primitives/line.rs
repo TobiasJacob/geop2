@@ -14,8 +14,9 @@ impl Line {
     /// Creates a new line segment from two points.
     /// Returns an error if the points are equal.
     pub fn try_new(start: Point, end: Point) -> AlgebraResult<Self> {
-        let context =
-            |err: AlgebraError| err.with_context(format!("creating line: {} -> {}", start, end));
+        let context = |err: AlgebraError| {
+            err.with_context(format!("creating line: {:?} -> {:?}", start, end))
+        };
 
         if start == end {
             return Err(AlgebraError::new(

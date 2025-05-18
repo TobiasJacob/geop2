@@ -122,6 +122,10 @@ impl Point {
     pub fn ones() -> Point {
         Point::new(EFloat64::one(), EFloat64::one(), EFloat64::one())
     }
+
+    pub fn sharpen(self) -> Point {
+        Point::new(self.x.sharpen(), self.y.sharpen(), self.z.sharpen())
+    }
 }
 
 impl Add for Point {
