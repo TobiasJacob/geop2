@@ -52,6 +52,7 @@ pub fn triangle_triangle_intersection(t1: &TriangleFace, t2: &TriangleFace) -> b
 
 /// Projects both triangles onto the given axis and checks if their projections overlap
 fn triangle_overlap_on_axis(t1: &TriangleFace, t2: &TriangleFace, axis: &Point) -> bool {
+    // TODO: Add this comment to the documentation of this project.
     // Here we sharpen the axis to avoid precision issues.
     // This is fine, since we are checking for overlap, and as soon as we proofed that we found any seperating axis, we can return false.
     // If we do not sharpen here, the seperating axis is so blurry that it might return a false positive.
