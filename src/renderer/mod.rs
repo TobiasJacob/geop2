@@ -133,6 +133,9 @@ pub fn render_scene(scene: &PrimitiveScene, file_path: &str) -> AlgebraResult<()
         ),
     );
 
+    // Replace the debug text placeholder
+    let template = template.replace("Debug text goes here...", &scene.debug_text);
+
     // Write the modified template to the file
     writeln!(file, "{}", template)?;
 
@@ -300,6 +303,7 @@ mod tests {
                     Color10::Red,
                 ),
             ],
+            debug_text: "Test debug text".to_string(),
         };
 
         // Render the scene to a test file

@@ -75,6 +75,11 @@ fn curve_curve_intersection_non_overlap(
             {
                 scene.add_convex_hull(curve1a.control_polygon_hull()?, Color10::Green);
                 scene.add_convex_hull(curve2a.control_polygon_hull()?, Color10::Green);
+                scene.add_debug_text(format!(
+                    "curve1a intersects curve2a\n{}\n{}",
+                    curve1a.control_polygon_hull()?,
+                    curve2a.control_polygon_hull()?
+                ));
             }
             if curve1a
                 .control_polygon_hull()?
@@ -82,6 +87,11 @@ fn curve_curve_intersection_non_overlap(
             {
                 scene.add_convex_hull(curve1a.control_polygon_hull()?, Color10::Olive);
                 scene.add_convex_hull(curve2b.control_polygon_hull()?, Color10::Olive);
+                scene.add_debug_text(format!(
+                    "curve1a intersects curve2b\n{}\n{}",
+                    curve1a.control_polygon_hull()?,
+                    curve2b.control_polygon_hull()?
+                ));
             }
 
             if curve1b
@@ -90,6 +100,11 @@ fn curve_curve_intersection_non_overlap(
             {
                 scene.add_convex_hull(curve1b.control_polygon_hull()?, Color10::Cyan);
                 scene.add_convex_hull(curve2a.control_polygon_hull()?, Color10::Cyan);
+                scene.add_debug_text(format!(
+                    "curve1b intersects curve2a\n{}\n{}",
+                    curve1b.control_polygon_hull()?,
+                    curve2a.control_polygon_hull()?
+                ));
             }
             if curve1b
                 .control_polygon_hull()?
@@ -97,6 +112,11 @@ fn curve_curve_intersection_non_overlap(
             {
                 scene.add_convex_hull(curve1b.control_polygon_hull()?, Color10::Purple);
                 scene.add_convex_hull(curve2b.control_polygon_hull()?, Color10::Purple);
+                scene.add_debug_text(format!(
+                    "curve1b intersects curve2b\n{}\n{}",
+                    curve1b.control_polygon_hull()?,
+                    curve2b.control_polygon_hull()?
+                ));
             }
             primitive_scene_recorder.add_scene(scene);
             // println!("curve1a: {}", curve1a);

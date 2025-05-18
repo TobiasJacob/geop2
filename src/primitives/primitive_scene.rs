@@ -14,6 +14,7 @@ pub struct PrimitiveScene {
     pub points: Vec<(Point, Color10)>,
     pub lines: Vec<(Line, Color10)>,
     pub triangles: Vec<(TriangleFace, Color10)>,
+    pub debug_text: String,
 }
 
 impl PrimitiveScene {
@@ -22,6 +23,7 @@ impl PrimitiveScene {
             points: vec![],
             lines: vec![],
             triangles: vec![],
+            debug_text: String::new(),
         }
     }
 
@@ -37,10 +39,27 @@ impl PrimitiveScene {
         self.triangles.push((triangle, color));
     }
 
+    pub fn set_debug_text(&mut self, text: String) {
+        self.debug_text = text;
+    }
+
+    pub fn add_debug_text(&mut self, text: String) {
+        if !self.debug_text.is_empty() {
+            self.debug_text.push('\n');
+        }
+        self.debug_text.push_str(&text);
+    }
+
     pub fn add_scene(&mut self, scene: PrimitiveScene) {
         self.points.extend(scene.points);
         self.lines.extend(scene.lines);
         self.triangles.extend(scene.triangles);
+        if !scene.debug_text.is_empty() {
+            if !self.debug_text.is_empty() {
+                self.debug_text.push('\n');
+            }
+            self.debug_text.push_str(&scene.debug_text);
+        }
     }
 
     pub fn add_convex_hull(&mut self, convex_hull: ConvexHull, color: Color10) {
