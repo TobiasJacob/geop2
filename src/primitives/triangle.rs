@@ -16,7 +16,7 @@ impl TriangleFace {
     pub fn try_new(a: Point, b: Point, c: Point) -> AlgebraResult<TriangleFace> {
         let context = |err: AlgebraError| {
             err.with_context(format!(
-                "Creating traingle with points: {}, {}, {}",
+                "Creating traingle with points: {:?}, {:?}, {:?}",
                 &a, &b, &c
             ))
         };
@@ -27,9 +27,28 @@ impl TriangleFace {
         }
 
         // Calculate the normal direction using the cross product.
-        let ab = b - a;
-        let ac = c - a;
-        let normal = ab.cross(ac).normalize().with_context(&context)?;
+        let normal = (b - a).cross(c - a);
+        // let normal2 = (c - b).cross(a - b);
+        // let normal3 = (a - c).cross(b - c);
+        // let mut normal = normal1;
+        // if normal2.norm_sq().lower_bound > normal.norm_sq().lower_bound {
+        //     normal = normal2;
+        // }
+        // if normal3.norm_sq().lower_bound > normal.norm_sq().lower_bound {
+        //     normal = normal3;
+        // }
+        // if normal.is_zero() {
+        //     return Err(AlgebraError::new(
+        //         format!(
+        //             "Cannot find a normal for this triangle. Candidates are {:?}, {:?}, {:?}",
+        //             normal1, normal2, normal3
+        //         )
+        //         .into(),
+        //     ))
+        //     .with_context(&context);
+        // }
+
+        let normal = normal.normalize().with_context(&context)?;
         Ok(TriangleFace { a, b, c, normal })
     }
 

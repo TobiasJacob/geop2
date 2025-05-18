@@ -49,13 +49,13 @@ fn curve_curve_intersection_non_overlap(
     // println!("curve1_span: {:?}", curve1_span.1 - curve1_span.0);
     // println!("curve2_span: {:?}", curve2_span.1 - curve2_span.0);
 
-    if curve1_span.0 >= curve1_span.1 - EFloat64::from(0.00001) {
+    if curve1_span.0 >= curve1_span.1 - EFloat64::from(0.000001) {
         let p = curve1.control_polygon_hull()?.to_point();
         println!("p: {:?}", p);
         return Ok(vec![p]);
     }
 
-    if curve2_span.0 >= curve2_span.1 - EFloat64::from(0.00001) {
+    if curve2_span.0 >= curve2_span.1 - EFloat64::from(0.000001) {
         let p = curve2.control_polygon_hull()?.to_point();
         println!("p: {:?}", p);
         return Ok(vec![p]);

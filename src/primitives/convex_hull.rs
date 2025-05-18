@@ -82,31 +82,30 @@ impl ConvexHull {
                 let cross = (unique_points[1] - unique_points[0])
                     .cross(unique_points[2] - unique_points[0]);
                 if cross.norm() == 0.0 {
-                    let dir = unique_points[1] - unique_points[0];
-                    // println!("dir: {:?}", dir);
-                    let mut help_vector = Point::unit_x();
-                    if dir.dot(Point::unit_y()) < dir.dot(help_vector) {
-                        help_vector = Point::unit_y();
-                    }
-                    if dir.dot(Point::unit_z()) < dir.dot(help_vector) {
-                        help_vector = Point::unit_z();
-                    }
-                    // println!("help_vector: {:?}", help_vector);
-                    let normal = (unique_points[1] - unique_points[0]).cross(help_vector);
+                    // let dir = unique_points[1] - unique_points[0];
+                    // // println!("dir: {:?}", dir);
+                    // let mut help_vector = Point::unit_x();
+                    // if dir.dot(Point::unit_y()) < dir.dot(help_vector) {
+                    //     help_vector = Point::unit_y();
+                    // }
+                    // if dir.dot(Point::unit_z()) < dir.dot(help_vector) {
+                    //     help_vector = Point::unit_z();
+                    // }
+                    // // println!("help_vector: {:?}", help_vector);
+                    // let normal = (unique_points[1] - unique_points[0]).cross(help_vector);
 
-                    // println!("normal: {:?}", normal);
+                    // if normal.is_zero() {
+                    //     normal =
 
-                    let normal = normal.normalize();
+                    // // println!("normal: {:?}", normal);
+
+                    // let normal = normal.normalize();
+
                     // println!("normal: {:?}", normal);
 
                     Ok(Self::Triangle(
-                        TriangleFace::try_new_with_normal(
-                            unique_points[0],
-                            unique_points[1],
-                            unique_points[2],
-                            normal?,
-                        )
-                        .with_context(&context)?,
+                        TriangleFace::try_new(unique_points[0], unique_points[1], unique_points[2])
+                            .with_context(&context)?,
                     ))
                 } else {
                     Ok(Self::Triangle(
@@ -526,6 +525,39 @@ mod tests {
         scene.save_to_file("test_outputs/convex_hull_intersection_2.html")?;
 
         assert!(!hull1.intersects(&hull2));
+        Ok(())
+    }
+
+    #[test]
+    fn test_convex_hull_slim_triangle() -> AlgebraResult<()> {
+        // This is a test case from a bug report.
+        // AlgebraContext: Creating traingle with points: Point { x: EFloat64 { upper_bound: 1.3978147874013427, lower_bound: 1.3978147735460702 }, y: EFloat64 { upper_bound: 2.619738621582274, lower_bound: 2.6197385956151336 }, z: EFloat64 { upper_bound: 5.5e-322, lower_bound: -5.5e-322 } }, Point { x: EFloat64 { upper_bound: 1.3983095957934102, lower_bound: 1.3983095810712085 }, y: EFloat64 { upper_bound: 2.620111360037854, lower_bound: 2.62011133245176 }, z: EFloat64 { upper_bound: 5.34e-322, lower_bound: -5.34e-322 } }, Point { x: EFloat64 { upper_bound: 1.3988041881929916, lower_bound: 1.3988041873563217 }, y: EFloat64 { upper_bound: 2.620483876058324, lower_bound: 2.6204838744909855 }, z: EFloat64 { upper_bound: 4.25e-322, lower_bound: -4.25e-322 } }
+        let points = vec![
+            Point::new(
+                EFloat64::new(1.3978147874013427, 1.3978147735460702),
+                EFloat64::new(2.619738621582274, 2.6197385956151336),
+                EFloat64::new(5.5e-322, -5.5e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.3983095957934102, 1.3983095810712085),
+                EFloat64::new(2.620111360037854, 2.62011133245176),
+                EFloat64::new(5.34e-322, -5.34e-322),
+            ),
+            Point::new(
+                EFloat64::new(1.3988041881929916, 1.3988041873563217),
+                EFloat64::new(2.620483876058324, 2.6204838744909855),
+                EFloat64::new(4.25e-322, -4.25e-322),
+            ),
+        ];
+        let mut scene = PrimitiveScene::new();
+        // draw 3 lines
+        scene.add_line(Line::try_new(points[0], points[1])?, Color10::Red);
+        scene.add_line(Line::try_new(points[1], points[2])?, Color10::Green);
+        scene.add_line(Line::try_new(points[2], points[0])?, Color10::Blue);
+        scene.save_to_file("test_outputs/convex_hull_slim_triangle.html")?;
+
+        let hull = ConvexHull::try_new(points)?;
+
         Ok(())
     }
 }

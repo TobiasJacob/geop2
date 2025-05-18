@@ -3,7 +3,10 @@ use std::{
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
-use crate::{algebra_error::AlgebraResult, primitives::efloat::EFloat64};
+use crate::{
+    algebra_error::{AlgebraError, AlgebraResult},
+    primitives::efloat::EFloat64,
+};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Point {
@@ -62,6 +65,12 @@ impl Point {
     }
 
     pub fn normalize(self) -> AlgebraResult<Point> {
+        if self.is_zero() {
+            return Err(AlgebraError::new(
+                format!("Cannot normalize zero vector: {:?}", self).into(),
+            ));
+        }
+
         let norm = self.norm();
         Ok(Point::new(
             (self.x / norm)?,
