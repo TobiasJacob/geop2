@@ -82,31 +82,23 @@ impl ConvexHull {
                 let cross = (unique_points[1] - unique_points[0])
                     .cross(unique_points[2] - unique_points[0]);
                 if cross.norm() == 0.0 {
-                    // let dir = unique_points[1] - unique_points[0];
-                    // // println!("dir: {:?}", dir);
-                    // let mut help_vector = Point::unit_x();
-                    // if dir.dot(Point::unit_y()) < dir.dot(help_vector) {
-                    //     help_vector = Point::unit_y();
-                    // }
-                    // if dir.dot(Point::unit_z()) < dir.dot(help_vector) {
-                    //     help_vector = Point::unit_z();
-                    // }
-                    // // println!("help_vector: {:?}", help_vector);
-                    // let normal = (unique_points[1] - unique_points[0]).cross(help_vector);
-
-                    // if normal.is_zero() {
-                    //     normal =
-
-                    // // println!("normal: {:?}", normal);
-
-                    // let normal = normal.normalize();
-
-                    // println!("normal: {:?}", normal);
-
-                    Ok(Self::Triangle(
-                        TriangleFace::try_new(unique_points[0], unique_points[1], unique_points[2])
-                            .with_context(&context)?,
-                    ))
+                    // Usually this means when we have a very very slim triangle, or the points are colinear.
+                    // Thus we want to approximate it as a line.
+                    // We do this by creating 3 lines, and checking which one contains the third point.
+                    let line1 = Line::try_new(unique_points[0], unique_points[1])?;
+                    let line2 = Line::try_new(unique_points[1], unique_points[2])?;
+                    let line3 = Line::try_new(unique_points[2], unique_points[0])?;
+                    if point_line_intersection(&unique_points[2], &line1) {
+                        Ok(Self::Line(line1))
+                    } else if point_line_intersection(&unique_points[0], &line2) {
+                        Ok(Self::Line(line2))
+                    } else if point_line_intersection(&unique_points[1], &line3) {
+                        Ok(Self::Line(line3))
+                    } else {
+                        Err(AlgebraError::new(
+                            "Cannot create convex hull from collinear points".to_string(),
+                        ))
+                    }
                 } else {
                     Ok(Self::Triangle(
                         TriangleFace::try_new(unique_points[0], unique_points[1], unique_points[2])
