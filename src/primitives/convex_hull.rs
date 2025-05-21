@@ -83,22 +83,33 @@ impl ConvexHull {
                     .cross(unique_points[2] - unique_points[0]);
                 if cross.norm() == 0.0 {
                     // Usually this means when we have a very very slim triangle, or the points are colinear.
-                    // Thus we want to approximate it as a line.
-                    // We do this by creating 3 lines, and checking which one contains the third point.
-                    let line1 = Line::try_new(unique_points[0], unique_points[1])?;
+                    // First find the line with the longest length.
+                    let mut line = Line::try_new(unique_points[0], unique_points[1])?;
                     let line2 = Line::try_new(unique_points[1], unique_points[2])?;
-                    let line3 = Line::try_new(unique_points[2], unique_points[0])?;
-                    if point_line_intersection(&unique_points[2], &line1) {
-                        Ok(Self::Line(line1))
-                    } else if point_line_intersection(&unique_points[0], &line2) {
-                        Ok(Self::Line(line2))
-                    } else if point_line_intersection(&unique_points[1], &line3) {
-                        Ok(Self::Line(line3))
-                    } else {
-                        Err(AlgebraError::new(
-                            "Cannot create convex hull from collinear points".to_string(),
-                        ))
+                    if line.length() < line2.length() {
+                        line = line2;
                     }
+                    let line3 = Line::try_new(unique_points[2], unique_points[0])?;
+                    if line.length() < line3.length() {
+                        line = line3;
+                    }
+
+                    // Now construct a vector that is orthogonal to the line.
+                    let mut unit_direction = Point::unit_x();
+                    if line.direction().dot(unit_direction) > Point::unit_y().dot(unit_direction) {
+                        unit_direction = Point::unit_y();
+                    }
+                    if line.direction().dot(unit_direction) > Point::unit_z().dot(unit_direction) {
+                        unit_direction = Point::unit_z();
+                    }
+                    let normal = unit_direction.cross(line.direction()).normalize()?;
+                    let triangel = TriangleFace::try_new_with_normal(
+                        unique_points[0],
+                        unique_points[1],
+                        unique_points[2],
+                        normal,
+                    )?;
+                    Ok(Self::Triangle(triangel))
                 } else {
                     Ok(Self::Triangle(
                         TriangleFace::try_new(unique_points[0], unique_points[1], unique_points[2])

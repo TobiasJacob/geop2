@@ -166,8 +166,11 @@
             pointsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
         }
         const pointsMaterial = new THREE.PointsMaterial({
-            size: 0.1,
-            vertexColors: true
+            size: 4.0,
+            vertexColors: true,
+            sizeAttenuation: true,
+            transparent: true,
+            opacity: 0.8
         });
         const points = new THREE.Points(pointsGeometry, pointsMaterial);
         scene.add(points);
