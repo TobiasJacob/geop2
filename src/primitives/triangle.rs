@@ -16,7 +16,7 @@ impl TriangleFace {
     pub fn try_new(a: Point, b: Point, c: Point) -> AlgebraResult<TriangleFace> {
         let context = |err: AlgebraError| {
             err.with_context(format!(
-                "Creating traingle with points: {:?}, {:?}, {:?}",
+                "Creating traingle with points: {}, {}, {}",
                 &a, &b, &c
             ))
         };

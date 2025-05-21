@@ -490,7 +490,7 @@ impl NurbsSurface {
         let mut d: Vec<Vec<NurbHelperPoint>> = Vec::with_capacity(p_u + 1);
         for i in 0..=p_u {
             if k_u + i < p_u || k_u + i - p_u >= self.coefficients.len() {
-                d.push(vec![NurbHelperPoint::zero(); self.coefficients[0].len()]);
+                d.push(vec![NurbHelperPoint::zero(); p_v + 1]);
             } else {
                 let mut row = Vec::with_capacity(p_v + 1);
                 for j in 0..=p_v {

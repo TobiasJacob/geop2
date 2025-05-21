@@ -3,10 +3,10 @@ use crate::algebra_error::AlgebraResult;
 use super::{efloat::EFloat64, point::Point};
 
 /// Helper struct for representing homogeneous control points during evaluation.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NurbHelperPoint {
-    point: Point,
-    weight: EFloat64,
+    pub point: Point,
+    pub weight: EFloat64,
 }
 
 impl NurbHelperPoint {
@@ -17,7 +17,7 @@ impl NurbHelperPoint {
     pub fn zero() -> Self {
         Self {
             point: Point::zero(),
-            weight: EFloat64::zero(),
+            weight: EFloat64::one(),
         }
     }
 

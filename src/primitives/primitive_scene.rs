@@ -1,7 +1,10 @@
 use crate::{
     algebra_error::AlgebraResult,
     curves::curve_like::CurveLike,
-    rasterize::{convex_hull::rasterize_convex_hull, curve::rasterize_curve},
+    face::Face,
+    rasterize::{
+        convex_hull::rasterize_convex_hull, curve::rasterize_curve, surface::rasterize_surface,
+    },
     renderer::render_scene,
 };
 
@@ -71,6 +74,16 @@ impl PrimitiveScene {
         let lines = rasterize_curve(curve)?;
         self.lines
             .extend(lines.into_iter().map(|line| (line, color.clone())));
+        Ok(())
+    }
+
+    pub fn add_face(&mut self, face: &Face, color: Color10) -> AlgebraResult<()> {
+        let triangles = rasterize_surface(face)?;
+        self.triangles.extend(
+            triangles
+                .into_iter()
+                .map(|triangle| (triangle, color.clone())),
+        );
         Ok(())
     }
 

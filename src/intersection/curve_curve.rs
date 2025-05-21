@@ -65,10 +65,10 @@ fn curve_curve_intersection_non_overlap(
     if let Ok((curve1a, curve1b)) = curve1.split() {
         if let Ok((curve2a, curve2b)) = curve2.split() {
             let mut scene = PrimitiveScene::new();
-            scene.add_curve(&curve1a, Color10::Red);
-            scene.add_curve(&curve1b, Color10::Red);
-            scene.add_curve(&curve2a, Color10::Blue);
-            scene.add_curve(&curve2b, Color10::Blue);
+            scene.add_curve(&curve1a, Color10::Red).ok();
+            scene.add_curve(&curve1b, Color10::Red).ok();
+            scene.add_curve(&curve2a, Color10::Blue).ok();
+            scene.add_curve(&curve2b, Color10::Blue).ok();
             if curve1a
                 .control_polygon_hull()?
                 .intersects(&curve2a.control_polygon_hull()?)

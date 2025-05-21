@@ -559,7 +559,7 @@ mod tests {
         scene.add_line(Line::try_new(points[2], points[0])?, Color10::Blue);
         scene.save_to_file("test_outputs/convex_hull_slim_triangle.html")?;
 
-        let hull = ConvexHull::try_new(points)?;
+        ConvexHull::try_new(points)?;
 
         Ok(())
     }

@@ -88,6 +88,19 @@ impl NurbsCurve {
         NurbsCurve::try_new(coefficients, weights, knot_vector, degree)
     }
 
+    pub fn new_line(start: Point, end: Point) -> AlgebraResult<Self> {
+        let coefficients = vec![start, end];
+        let weights = vec![EFloat64::one(), EFloat64::one()];
+        let knot_vector = vec![
+            EFloat64::zero(),
+            EFloat64::zero(),
+            EFloat64::one(),
+            EFloat64::one(),
+        ];
+        let degree = 1;
+        Self::try_new(coefficients, weights, knot_vector, degree)
+    }
+
     /// Returns the degree of the NURBS curve.
     pub fn degree(&self) -> usize {
         self.degree
@@ -173,6 +186,14 @@ impl NurbsCurve {
 
         // Use quickhull to generate the convex hull
         Ok(ConvexHull::try_new(points)?)
+    }
+
+    pub fn start_point(&self) -> Point {
+        self.coefficients[0].clone()
+    }
+
+    pub fn end_point(&self) -> Point {
+        self.coefficients[self.coefficients.len() - 1].clone()
     }
 }
 

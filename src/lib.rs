@@ -1,5 +1,7 @@
 pub mod algebra_error;
+pub mod contour;
 pub mod curves;
+pub mod face;
 pub mod intersection;
 pub mod primitives;
 pub mod rasterize;
