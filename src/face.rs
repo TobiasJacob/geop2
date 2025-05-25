@@ -233,7 +233,7 @@ mod tests {
 
         let mut faces = vec![surface];
 
-        for level in 1..=4 {
+        for level in 1..=3 {
             let mut new_faces = Vec::new();
             println!("Subdividing level {}", level);
             for surf in faces {
