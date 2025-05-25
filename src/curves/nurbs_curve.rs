@@ -6,7 +6,6 @@ use crate::primitives::efloat::EFloat64;
 use crate::primitives::nurb_helper_point::NurbHelperPoint;
 use crate::primitives::point::Point;
 
-use super::bspline_curve::BSplineCurve;
 use super::curve_like::CurveLike;
 
 /// A NURBS (Non-Uniform Rational B-Spline) curve.
@@ -264,30 +263,6 @@ impl NurbsCurve {
         NurbsCurve::try_new(new_coefficients, new_weights, new_knot_vector, self.degree)
     }
 
-    pub fn eval_slow(&self, t: EFloat64) -> AlgebraResult<Point> {
-        let mut numerator = Point::zero();
-        let mut denominator = EFloat64::zero();
-
-        for i in 0..self.coefficients.len() {
-            // Reuse the BSpline basis functions.
-            let basis = BSplineCurve::try_new_from_basis(
-                i,
-                self.degree,
-                self.knot_vector.clone(),
-                Point::unit_z(),
-            )
-            .unwrap();
-            let n = basis.eval(t).z;
-            let wn = self.weights[i] * n;
-            numerator = numerator + self.coefficients[i].clone() * wn;
-            denominator = denominator + wn;
-        }
-        if denominator == EFloat64::zero() {
-            return Err("Division by zero".into());
-        }
-        numerator / denominator
-    }
-
     pub fn eval_impl(&self, t: EFloat64) -> Point {
         let k = match self.find_span(t) {
             Some(span) => span,
@@ -387,50 +362,6 @@ mod tests {
 
     fn to_efloat_vec(values: Vec<f64>) -> Vec<EFloat64> {
         values.into_iter().map(EFloat64::from).collect()
-    }
-
-    #[test]
-    fn test_nurbs_values_equal() {
-        // Create a NURBS curve with scalar control points.
-        let coefficients = vec![
-            Point::new(
-                EFloat64::from(5.0),
-                EFloat64::from(0.0),
-                EFloat64::from(0.0),
-            ),
-            Point::new(
-                EFloat64::from(1.0),
-                EFloat64::from(0.0),
-                EFloat64::from(0.0),
-            ),
-            Point::new(
-                EFloat64::from(3.0),
-                EFloat64::from(0.0),
-                EFloat64::from(0.0),
-            ),
-            Point::new(
-                EFloat64::from(2.0),
-                EFloat64::from(0.0),
-                EFloat64::from(0.0),
-            ),
-        ];
-
-        // Use non-uniform weights for demonstration.
-        let weights = to_efloat_vec(vec![1.0, 2.0, 1.0, 1.0]);
-
-        // Strictly increasing knot vector.
-        let knot_vector = to_efloat_vec(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]);
-
-        let nurbs = NurbsCurve::try_new(coefficients, weights, knot_vector, 3).unwrap();
-
-        // Test at various parameter values.
-        let test_params = to_efloat_vec(vec![1.5, 2.0, 2.5, 3.5, 4.5]);
-
-        for t in test_params {
-            let result_eval = nurbs.eval(t);
-            let result_slow = nurbs.eval_slow(t);
-            assert_eq!(result_eval, result_slow.unwrap());
-        }
     }
 
     #[test]

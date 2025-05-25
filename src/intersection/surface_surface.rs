@@ -1,73 +1,24 @@
-use std::fmt::{self, Display};
+use crate::algebra_error::AlgebraResult;
+use crate::primitives::point::Point;
+use crate::surfaces::nurbs_surface::NurbsSurface;
 
-use crate::{
-    algebra_error::{AlgebraError, AlgebraResult},
-    contour::Contour,
-    curves::nurbs_curve::NurbsCurve,
-    primitives::point::Point,
-    surfaces::nurbs_surface::NurbsSurface,
-};
-
-pub struct Face {
-    pub surface: NurbsSurface,
-    pub bounds: Vec<Contour>,
+pub fn surface_surface_intersection_non_overlap(
+    _surface1: &NurbsSurface,
+    _surface2: &NurbsSurface,
+) -> AlgebraResult<Vec<Point>> {
+    Ok(vec![])
 }
 
-impl Face {
-    pub fn try_new(surface: NurbsSurface, bounds: Vec<Contour>) -> AlgebraResult<Self> {
-        // Check there is at least one contour
-        if bounds.is_empty() {
-            return Err(AlgebraError::new("No bounds found".to_string()));
-        }
-
-        Ok(Self { surface, bounds })
-    }
-
-    pub fn try_new_from_surface(surface: NurbsSurface) -> AlgebraResult<Self> {
-        // Create a contour that goes from 0,0 to 1,0 to 1,1 to 0,1 to 0,0
-        let bounds = Contour::try_new(vec![
-            NurbsCurve::new_line(
-                Point::from_f64(0.0, 0.0, 0.0),
-                Point::from_f64(1.0, 0.0, 0.0),
-            )?,
-            NurbsCurve::new_line(
-                Point::from_f64(1.0, 0.0, 0.0),
-                Point::from_f64(1.0, 1.0, 0.0),
-            )?,
-            NurbsCurve::new_line(
-                Point::from_f64(1.0, 1.0, 0.0),
-                Point::from_f64(0.0, 1.0, 0.0),
-            )?,
-            NurbsCurve::new_line(
-                Point::from_f64(0.0, 1.0, 0.0),
-                Point::from_f64(0.0, 0.0, 0.0),
-            )?,
-        ])?;
-        Self::try_new(surface, vec![bounds])
-    }
-}
-
-impl Display for Face {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Face")?;
-        write!(f, "Surface: {}", self.surface)?;
-        write!(f, "Bounds: {}", self.bounds.len())?;
-        for bound in &self.bounds {
-            write!(f, "{}", bound)?;
-        }
-        Ok(())
-    }
-}
 
 #[cfg(test)]
 mod tests {
-    use crate::{primitives::{color::Color10, efloat::EFloat64, primitive_scene::PrimitiveScene}, surfaces::surface_like::SurfaceLike};
+    use crate::{face::Face, primitives::{color::Color10, efloat::EFloat64, primitive_scene::PrimitiveScene}};
 
     use super::*;
 
     #[test]
-    fn test_try_new_from_surface() -> AlgebraResult<()> {
-        let surface = NurbsSurface::try_new(
+    fn test_surface_surface_intersection_non_overlap() -> AlgebraResult<()> {
+        let surface1 = NurbsSurface::try_new(
             vec![
                 vec![
                     Point::from_f64(0.0, 2.0, 0.0),
@@ -141,44 +92,33 @@ mod tests {
             2,
             2,
         )?;
-        let face = Face::try_new_from_surface(surface.clone())?;
+        let face1 = Face::try_new_from_surface(surface1.clone())?;
 
-        let mut scene = PrimitiveScene::new();
-        scene.add_face(&face, Color10::Blue)?;
-        scene.add_convex_hull(surface.get_convex_hull()?, Color10::Blue);
-
-        scene.save_to_file("test_outputs/nurbs_surface.html")?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_subdivide_surface() -> AlgebraResult<()> {
-        let surface = NurbsSurface::try_new(
+        let surface2 = NurbsSurface::try_new(
             vec![
                 vec![
-                    Point::from_f64(0.0, 2.0, 0.0),
-                    Point::from_f64(1.0, 1.0, 0.0),
-                    Point::from_f64(2.0, 0.0, 0.0),
-                    Point::from_f64(3.0, 1.0, 0.0),
+                    Point::from_f64(0.0, 1.0, 0.0),
+                    Point::from_f64(1.0, 4.0, 0.0),
+                    Point::from_f64(2.0, 3.0, 0.0),
+                    Point::from_f64(3.0, 0.0, 0.0),
                 ],
                 vec![
-                    Point::from_f64(0.0, 1.0, 1.0),
-                    Point::from_f64(1.0, 0.0, 1.0),
-                    Point::from_f64(2.0, 1.0, 1.0),
-                    Point::from_f64(3.0, 0.0, 1.0),
+                    Point::from_f64(0.0, 0.0, 1.0),
+                    Point::from_f64(1.0, 1.0, 1.0),
+                    Point::from_f64(2.0, 0.0, 1.0),
+                    Point::from_f64(3.0, 1.0, 1.0),
                 ],
                 vec![
-                    Point::from_f64(0.0, 0.0, 2.0),
-                    Point::from_f64(1.0, 1.0, 2.0),
-                    Point::from_f64(2.0, 0.0, 2.0),
-                    Point::from_f64(3.0, 1.0, 2.0),
+                    Point::from_f64(0.0, 1.0, 2.0),
+                    Point::from_f64(1.0, 0.0, 2.0),
+                    Point::from_f64(2.0, 1.0, 2.0),
+                    Point::from_f64(3.0, 0.0, 2.0),
                 ],
                 vec![
-                    Point::from_f64(0.0, 1.0, 3.0),
-                    Point::from_f64(1.0, 0.0, 3.0),
-                    Point::from_f64(2.0, 1.0, 3.0),
-                    Point::from_f64(3.0, 0.0, 3.0),
+                    Point::from_f64(0.0, 0.0, 3.0),
+                    Point::from_f64(1.0, 1.0, 3.0),
+                    Point::from_f64(2.0, 0.0, 3.0),
+                    Point::from_f64(3.0, 1.0, 3.0),
                 ],
             ],
             vec![
@@ -228,33 +168,16 @@ mod tests {
             2,
             2,
         )?;
-        let (surf1, surf2) = surface.subdivide_u(EFloat64::from(0.5))?;
-        let (surf1a, surf1b) = surf1.subdivide_v(EFloat64::from(0.5))?;
-        let (surf2a, surf2b) = surf2.subdivide_v(EFloat64::from(0.5))?;
-        let face1 = Face::try_new_from_surface(surf1a.clone())?;
-        let face2 = Face::try_new_from_surface(surf1b.clone())?;
-        let face3 = Face::try_new_from_surface(surf2a.clone())?;
-        let face4 = Face::try_new_from_surface(surf2b.clone())?;
-
-        println!("face1: {}", surf1a);
-        println!("face2: {}", surf1b);
-        println!("face3: {}", surf2a);
-        println!("face4: {}", surf2b);
+        let face2 = Face::try_new_from_surface(surface2)?;
 
         let mut scene = PrimitiveScene::new();
         scene.add_face(&face1, Color10::Blue)?;
         scene.add_face(&face2, Color10::Red)?;
-        scene.add_face(&face3, Color10::Green)?;
-        scene.add_face(&face4, Color10::Pink)?;
-        scene.add_convex_hull(surf1a.get_convex_hull()?, Color10::Blue);
-        scene.add_convex_hull(surf1b.get_convex_hull()?, Color10::Red);
-        scene.add_convex_hull(surf2a.get_convex_hull()?, Color10::Green);
-        scene.add_convex_hull(surf2b.get_convex_hull()?, Color10::Pink);
+        scene.add_convex_hull(surface1.get_convex_hull()?, Color10::Blue);
 
-        scene.save_to_file("test_outputs/nurbs_surface_subdivide.html")?;
-
-        
+        scene.save_to_file("test_outputs/nurbs_surface_intersection_non_overlap.html")?;
 
         Ok(())
     }
 }
+
