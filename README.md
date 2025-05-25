@@ -26,6 +26,6 @@ Geop 2 is an open source CAD kernel. It is the successor to [Geop](https://githu
 
 ## Demos
 
-![Convex Hull](docs\ConvexHull.png)
+![Convex Hull](./docs/ConvexHull.png)
 
-![Curve Intersection](docs\Intersection.png)
+![Curve Intersection](./docs/Intersection.png)
