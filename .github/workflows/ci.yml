@@ -7,14 +7,16 @@ on:
     branches: [ main ]
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  build-and-test:
+  test:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    - name: Checkout
       uses: actions/checkout@v4
 
     - name: Set up Rust
@@ -24,32 +26,22 @@ jobs:
         override: true
 
     - name: Run Cargo Tests
-      run: |
-        cargo test
+      run: cargo test
 
-    - name: Upload test outputs as artifact
-      uses: actions/upload-artifact@v4
+    - name: Upload test outputs artifact
+      uses: actions/upload-pages-artifact@v3
       with:
-        name: test-outputs
         path: test_outputs
 
-  deploy-pages:
-    needs: build-and-test
+  deploy:
+    needs: test
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Download test outputs artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: test-outputs
-        path: test_outputs
-
     - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./test_outputs
+      id: deployment
+      uses: actions/deploy-pages@v4
