@@ -1,10 +1,9 @@
 use std::fmt::Display;
 
 use crate::{
-    algebra_error::{AlgebraError, AlgebraResult},
+    algebra_error::{AlgebraError, AlgebraResult, WithContext},
     curves::nurbs_curve::NurbsCurve,
-    primitives::nurb_helper_point::NurbHelperPoint,
-    primitives::{convex_hull::ConvexHull, efloat::EFloat64, point::Point},
+    primitives::{convex_hull::ConvexHull, efloat::EFloat64, nurb_helper_point::NurbHelperPoint, point::Point},
     surfaces::surface_like::SurfaceLike,
 };
 
@@ -40,10 +39,19 @@ impl NurbsSurface {
         degree_u: usize,
         degree_v: usize,
     ) -> AlgebraResult<Self> {
+        let context = |err: AlgebraError| err.with_context(format!("Attempting to create {}", Self {
+            coefficients: coefficients.clone(),
+            weights: weights.clone(),
+            knot_vector_u: knot_vector_u.clone(),
+            knot_vector_v: knot_vector_v.clone(),
+            degree_u,
+            degree_v,
+        }));
+
         if coefficients.is_empty() {
             return Err(AlgebraError::new(
                 "NurbsSurface invalid input: coefficients cannot be empty".to_string(),
-            ));
+            )).with_context(&context);
         }
         let num_rows = coefficients.len();
         let num_cols = coefficients[0].len();
@@ -53,26 +61,26 @@ impl NurbsSurface {
                 return Err(AlgebraError::new(
                     "NurbsSurface invalid input: inconsistent number of columns in coefficients"
                         .to_string(),
-                ));
+                )).with_context(&context);
             }
             if weights.get(i).map_or(true, |w_row| w_row.len() != num_cols) {
                 return Err(AlgebraError::new(
                     "NurbsSurface invalid input: weights must have the same dimensions as coefficients"
                         .to_string(),
-                ));
+                )).with_context(&context);
             }
         }
         if num_rows <= degree_u {
             return Err(AlgebraError::new(format!(
                 "NurbsSurface invalid input: number of rows ({}) <= degree_u ({})",
                 num_rows, degree_u
-            )));
+            ))).with_context(&context);
         }
         if num_cols <= degree_v {
             return Err(AlgebraError::new(format!(
                 "NurbsSurface invalid input: number of columns ({}) <= degree_v ({})",
                 num_cols, degree_v
-            )));
+            ))).with_context(&context);
         }
         if knot_vector_u.len() != num_rows + 1 + degree_u {
             return Err(AlgebraError::new(format!(
@@ -80,7 +88,7 @@ impl NurbsSurface {
                 knot_vector_u.len(),
                 num_rows,
                 degree_u
-            )));
+            ))).with_context(&context);
         }
         if knot_vector_v.len() != num_cols + 1 + degree_v {
             return Err(AlgebraError::new(format!(
@@ -88,17 +96,17 @@ impl NurbsSurface {
                 knot_vector_v.len(),
                 num_cols,
                 degree_v
-            )));
+            ))).with_context(&context);
         }
         // Check that knot vectors are non-decreasing.
         for i in 1..knot_vector_u.len() {
             if knot_vector_u[i - 1] > knot_vector_u[i] {
-                return Err("Knot vector u must be non-decreasing".into());
+                return Err("Knot vector u must be non-decreasing".into()).with_context(&context);
             }
         }
         for i in 1..knot_vector_v.len() {
             if knot_vector_v[i - 1] > knot_vector_v[i] {
-                return Err("Knot vector v must be non-decreasing".into());
+                return Err("Knot vector v must be non-decreasing".into()).with_context(&context);
             }
         }
 
@@ -163,10 +171,7 @@ impl NurbsSurface {
             return None;
         }
         if t == knot_vector[knot_vector.len() - 1] {
-            let mut span = knot_vector.len() - 1;
-            while knot_vector[span] == t {
-                span -= 1;
-            }
+            let span = knot_vector.len() - 1;
             return Some(span);
         }
         let mut span = 0;
@@ -341,9 +346,11 @@ impl NurbsSurface {
     ///
     /// The v–direction remains unchanged.
     fn subdivide_u_impl(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
+        let context = |err: AlgebraError| err.with_context(format!("subdividing at u={} surface: {}", t, self));
+
         let p = self.degree_u;
 
-        if t < self.knot_vector_u[p] || t > self.knot_vector_u[self.knot_vector_u.len() - p - 1] {
+        if t < self.knot_vector_u[p] || t >= self.knot_vector_u[self.knot_vector_u.len() - p - 1] {
             return Err(AlgebraError::new(
                 "Parameter t is out of the valid domain for u subdivision".to_string(),
             ));
@@ -352,7 +359,7 @@ impl NurbsSurface {
         // Determine current multiplicity of t in u–direction.
         let current_multiplicity = self.knot_vector_u.iter().filter(|&knot| *knot == t).count();
         // t must appear with multiplicity p+1.
-        let r = p - current_multiplicity;
+        let r = p + 1 - current_multiplicity;
         let mut surface = self.clone();
         for _ in 0..r {
             surface = surface.insert_knot_u(t.clone())?;
@@ -369,9 +376,9 @@ impl NurbsSurface {
         };
 
         // Build left surface: rows 0 to (t_index - p) and the corresponding u–knot vector.
-        let left_coeffs = surface.coefficients[..=(t_index - p)].to_vec();
-        let left_weights = surface.weights[..=(t_index - p)].to_vec();
-        let left_knots_u = surface.knot_vector_u[..=t_index + 1].to_vec();
+        let left_coeffs = surface.coefficients[..=(t_index - p - 1)].to_vec();
+        let left_weights = surface.weights[..=(t_index - p - 1)].to_vec();
+        let left_knots_u = surface.knot_vector_u[..=t_index].to_vec();
         let left_surface = NurbsSurface::try_new(
             left_coeffs,
             left_weights,
@@ -392,7 +399,7 @@ impl NurbsSurface {
             surface.knot_vector_v.clone(),
             p,
             surface.degree_v,
-        )?;
+        ).with_context(&context)?;
 
         Ok((left_surface, right_surface))
     }
@@ -403,6 +410,8 @@ impl NurbsSurface {
     ///
     /// The u–direction remains unchanged.
     fn subdivide_v_impl(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
+        let context = |err: AlgebraError| err.with_context(format!("subdividing at v={} surface: {}", t, self));
+
         let p = self.degree_v;
 
         if t < self.knot_vector_v[p] || t > self.knot_vector_v[self.knot_vector_v.len() - p - 1] {
@@ -414,7 +423,7 @@ impl NurbsSurface {
         // Determine current multiplicity of t in v–direction.
         let current_multiplicity = self.knot_vector_v.iter().filter(|&knot| *knot == t).count();
         // t must appear with multiplicity p+1.
-        let r = p - current_multiplicity;
+        let r = p - current_multiplicity + 1;
         let mut surface = self.clone();
         for _ in 0..r {
             surface = surface.insert_knot_v(t.clone())?;
@@ -434,10 +443,10 @@ impl NurbsSurface {
         let mut left_coeffs: Vec<Vec<Point>> = Vec::with_capacity(surface.coefficients.len());
         let mut left_weights: Vec<Vec<EFloat64>> = Vec::with_capacity(surface.weights.len());
         for (i, row) in surface.coefficients.iter().enumerate() {
-            left_coeffs.push(row[..=(t_index - p)].to_vec());
-            left_weights.push(surface.weights[i][..=(t_index - p)].to_vec());
+            left_coeffs.push(row[..=(t_index - p - 1)].to_vec());
+            left_weights.push(surface.weights[i][..=(t_index - p - 1)].to_vec());
         }
-        let left_knots_v = surface.knot_vector_v[..=t_index + 1].to_vec();
+        let left_knots_v = surface.knot_vector_v[..=t_index].to_vec();
         let left_surface = NurbsSurface::try_new(
             left_coeffs,
             left_weights,
@@ -445,7 +454,7 @@ impl NurbsSurface {
             left_knots_v,
             surface.degree_u,
             p,
-        )?;
+        ).with_context(&context)?;
 
         // Build right surface: columns from (t_index - p) to end.
         let mut right_coeffs: Vec<Vec<Point>> = Vec::with_capacity(surface.coefficients.len());
@@ -462,7 +471,7 @@ impl NurbsSurface {
             right_knots_v,
             surface.degree_u,
             p,
-        )?;
+        ).with_context(&context)?;
 
         Ok((left_surface, right_surface))
     }
@@ -474,16 +483,22 @@ impl NurbsSurface {
     /// de Boor algorithm (first along the v–direction for each row, then along the u–direction),
     /// and finally converting back to Euclidean space.
     pub fn eval_impl(&self, u: EFloat64, v: EFloat64) -> Point {
-        let k_u = match self.find_span_u(u.clone()) {
+        let mut k_u = match self.find_span_u(u.clone()) {
             Some(span) => span,
             None => return Point::zero(),
         };
-        let k_v = match self.find_span_v(v.clone()) {
+        let mut k_v = match self.find_span_v(v.clone()) {
             Some(span) => span,
             None => return Point::zero(),
         };
         let p_u = self.degree_u;
         let p_v = self.degree_v;
+        if k_u == self.knot_vector_u.len() - 1 {
+            k_u -= p_u;
+        }
+        if k_v == self.knot_vector_v.len() - 1 {
+            k_v -= p_v;
+        }
 
         // Build a 2D array of homogeneous control points.
         // Each homogeneous point is of the form (w * P, w).

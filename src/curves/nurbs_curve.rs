@@ -114,10 +114,10 @@ impl NurbsCurve {
             return None;
         }
         if t == self.knot_vector[self.knot_vector.len() - 1] {
-            let mut mid = self.knot_vector.len() - 1;
-            while self.knot_vector[mid] == t {
-                mid -= 1;
-            }
+            let mid = self.knot_vector.len() - 1;
+            // while self.knot_vector[mid] == t {
+            //     mid -= 1;
+            // }
             return Some(mid);
         }
         let mut mid = 0;
@@ -136,7 +136,7 @@ impl NurbsCurve {
         let p = self.degree;
 
         // Ensure t lies within the valid parameter domain.
-        if t < self.knot_vector[p] || t > self.knot_vector[self.knot_vector.len() - p - 1] {
+        if t < self.knot_vector[p] || t >= self.knot_vector[self.knot_vector.len() - p - 1] {
             return Err(AlgebraError::new(
                 "Parameter t is out of the valid domain for subdivision".to_string(),
             ));
@@ -145,7 +145,7 @@ impl NurbsCurve {
         // Determine the current multiplicity of t in the knot vector.
         let current_multiplicity = self.knot_vector.iter().filter(|&knot| *knot == t).count();
         // To split the curve, t must appear with multiplicity p+1.
-        let r = p - current_multiplicity + 1;
+        let r = p + 1 - current_multiplicity;
         let mut curve = self.clone();
         for _ in 0..r {
             curve = curve.insert_knot(t.clone())?;
@@ -264,11 +264,15 @@ impl NurbsCurve {
     }
 
     pub fn eval_impl(&self, t: EFloat64) -> Point {
-        let k = match self.find_span(t) {
+        let mut k = match self.find_span(t) {
             Some(span) => span,
             None => return Point::zero(),
         };
         let p = self.degree;
+        if k == self.knot_vector.len() - 1 {
+            // If t is at the end of the knot vector, return the last control point.
+            k -= p;
+        }
 
         let mut d: Vec<NurbHelperPoint> = Vec::with_capacity(p + 1);
 

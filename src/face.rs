@@ -61,7 +61,7 @@ impl Display for Face {
 
 #[cfg(test)]
 mod tests {
-    use crate::{primitives::{color::Color10, efloat::EFloat64, primitive_scene::PrimitiveScene}, surfaces::surface_like::SurfaceLike};
+    use crate::{primitives::{color::{Color10, COLORS}, efloat::EFloat64, primitive_scene::PrimitiveScene}, surfaces::surface_like::SurfaceLike};
 
     use super::*;
 
@@ -228,33 +228,39 @@ mod tests {
             2,
             2,
         )?;
-        let (surf1, surf2) = surface.subdivide_u(EFloat64::from(0.5))?;
-        let (surf1a, surf1b) = surf1.subdivide_v(EFloat64::from(0.5))?;
-        let (surf2a, surf2b) = surf2.subdivide_v(EFloat64::from(0.5))?;
-        let face1 = Face::try_new_from_surface(surf1a.clone())?;
-        let face2 = Face::try_new_from_surface(surf1b.clone())?;
-        let face3 = Face::try_new_from_surface(surf2a.clone())?;
-        let face4 = Face::try_new_from_surface(surf2b.clone())?;
 
-        println!("face1: {}", surf1a);
-        println!("face2: {}", surf1b);
-        println!("face3: {}", surf2a);
-        println!("face4: {}", surf2b);
+        let colors = COLORS;
 
-        let mut scene = PrimitiveScene::new();
-        scene.add_face(&face1, Color10::Blue)?;
-        scene.add_face(&face2, Color10::Red)?;
-        scene.add_face(&face3, Color10::Green)?;
-        scene.add_face(&face4, Color10::Pink)?;
-        scene.add_convex_hull(surf1a.get_convex_hull()?, Color10::Blue);
-        scene.add_convex_hull(surf1b.get_convex_hull()?, Color10::Red);
-        scene.add_convex_hull(surf2a.get_convex_hull()?, Color10::Green);
-        scene.add_convex_hull(surf2b.get_convex_hull()?, Color10::Pink);
+        let mut faces = vec![surface];
 
-        scene.save_to_file("test_outputs/nurbs_surface_subdivide.html")?;
+        for level in 1..=4 {
+            let mut new_faces = Vec::new();
+            println!("Subdividing level {}", level);
+            for surf in faces {
+                let u_span = surf.u_span();
+                let v_span = surf.v_span();
+                let u_split = ((u_span.1 + u_span.0) / EFloat64::from(2.0))?;
+                let v_split = ((v_span.1 + v_span.0) / EFloat64::from(2.0))?;
+                let (surf1, surf2) = surf.subdivide_u(u_split)?;
+                let (surf1a, surf1b) = surf1.subdivide_v(v_split)?;
+                let (surf2a, surf2b) = surf2.subdivide_v(v_split)?;
+                new_faces.push(surf1a);
+                new_faces.push(surf1b);
+                new_faces.push(surf2a);
+                new_faces.push(surf2b);
+            }
 
-        
-
+            println!("Rasterizing {} new faces", new_faces.len());
+            faces = new_faces;
+            let mut scene = PrimitiveScene::new();
+            for (i, surf) in faces.iter().enumerate() {
+                let face = Face::try_new_from_surface(surf.clone())?;
+                scene.add_face(&face, colors[i % colors.len()])?;
+                scene.add_convex_hull(surf.get_convex_hull()?, colors[i % colors.len()]);
+            }
+            let filename = format!("test_outputs/nurbs_surface_subdivide_level_{}.html", level);
+            scene.save_to_file(&filename)?;
+        }
         Ok(())
     }
 }
