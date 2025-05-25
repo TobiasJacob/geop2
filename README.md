@@ -1,9 +1,11 @@
 # Geop 2
 
-Geop 2 is an open source CAD kernel developed by me (Tobias Jacob). It is the successor to [Geop](https://github.com/TobiasJacob/geop), which worked as a proof of concept. Take a look also at [Isotope](https://github.com/CADmium-Co/ISOtope), a high-performance sketch constraint solver. I use some lessons learned from Geop to build a more robust and feature-rich kernel. Here are some of the key lessons learned:
+<iframe src="https://github.com/sponsors/TobiasJacob/button" title="Sponsor TobiasJacob" height="32" width="114" style="border: 0; border-radius: 6px;"></iframe>
+
+Geop 2 is an open source CAD kernel developed by me (Tobias Jacob). Contributions are welcome, but will requrie a contributor license agreement (CLA). Sponsoring is also more than welcome. It is the successor to [Geop](https://github.com/TobiasJacob/geop), which worked as a proof of concept. Take a look also at [Isotope](https://github.com/CADmium-Co/ISOtope), a high-performance sketch constraint solver. I use some lessons learned from Geop to build a more robust and feature-rich kernel. Here are some of the key lessons learned:
 - I ditched math heavy algorithms in favor of subdivions schemes. Take a look at this interactive  
 [Subdivision Demo](https://tobiasjacob.github.io/geop2/curve_curve_intersection/scene_0.html).
-- Thge project is NURBS first. Once intersections, boolean operations, fillets, etc. are working well for NURBS, one can convert other geometric entities like planes or spheres to nurbs.
+- The project is NURBS first. Once intersections, boolean operations, fillets, etc. are working well for NURBS, one can convert other geometric entities like planes or spheres to nurbs.
 - For debugging, I am still rendering everything into a book, but now I render to html instead of pngs.
 
 ## Roadmap
