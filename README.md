@@ -1,6 +1,6 @@
 # Geop 2
 
-Geop 2 is an open source CAD kernel. It is the successor to [Geop](https://github.com/TobiasJacob/geop), which worked as a proof of concept. Soon, we will also add features from [Isotope](https://github.com/CADmium-Co/ISOtope), a high-performance sketch constraint solver. We use some lessons learned from Geop to build a more robust and feature-rich kernel. Here are some of the key lessons learned:
+Geop 2 is an open source CAD kernel developed by me (Tobias Jacob). It is the successor to [Geop](https://github.com/TobiasJacob/geop), which worked as a proof of concept. Soon, we will also add features from [Isotope](https://github.com/CADmium-Co/ISOtope), a high-performance sketch constraint solver. We use some lessons learned from Geop to build a more robust and feature-rich kernel. Here are some of the key lessons learned:
 - We ditched math heavy algorithms in favor of subdivions schemes. Take a look at this interactive  
 [Subdivision Demo](https://tobiasjacob.github.io/geop2/curve_curve_intersection/scene_0.html).
 
