@@ -718,6 +718,9 @@ impl NurbsSurface {
             .flat_map(|row| row.iter().cloned())
             .collect();
 
+        // for p in &points {
+        //     println!("point: {}", p);
+        // }
         // Use the existing ConvexHull implementation
         ConvexHull::try_new(points)
     }

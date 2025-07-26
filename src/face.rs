@@ -1,11 +1,11 @@
-use std::fmt::{self, Display};
+use std::{fmt::{self, Display}};
 
 use crate::{
     algebra_error::{AlgebraError, AlgebraResult},
     contour::Contour,
     curves::nurbs_curve::NurbsCurve,
-    primitives::point::Point,
-    surfaces::nurbs_surface::NurbsSurface,
+    primitives::{efloat::EFloat64, point::Point},
+    surfaces::{nurbs_surface::NurbsSurface, surface_like::SurfaceLike},
 };
 
 pub struct Face {
@@ -24,23 +24,25 @@ impl Face {
     }
 
     pub fn try_new_from_surface(surface: NurbsSurface) -> AlgebraResult<Self> {
+        let u_span = surface.u_span();
+        let v_span = surface.v_span();
         // Create a contour that goes from 0,0 to 1,0 to 1,1 to 0,1 to 0,0
         let bounds = Contour::try_new(vec![
             NurbsCurve::new_line(
-                Point::from_f64(0.0, 0.0, 0.0),
-                Point::from_f64(1.0, 0.0, 0.0),
+                Point::new(u_span.0, v_span.0, EFloat64::zero()),
+                Point::new(u_span.1, v_span.0, EFloat64::zero()),
             )?,
             NurbsCurve::new_line(
-                Point::from_f64(1.0, 0.0, 0.0),
-                Point::from_f64(1.0, 1.0, 0.0),
+                Point::new(u_span.1, v_span.0, EFloat64::zero()),
+                Point::new(u_span.1, v_span.1, EFloat64::zero()),
             )?,
             NurbsCurve::new_line(
-                Point::from_f64(1.0, 1.0, 0.0),
-                Point::from_f64(0.0, 1.0, 0.0),
+                Point::new(u_span.1, v_span.1, EFloat64::zero()),
+                Point::new(u_span.0, v_span.1, EFloat64::zero()),
             )?,
             NurbsCurve::new_line(
-                Point::from_f64(0.0, 1.0, 0.0),
-                Point::from_f64(0.0, 0.0, 0.0),
+                Point::new(u_span.0, v_span.1, EFloat64::zero()),
+                Point::new(u_span.0, v_span.0, EFloat64::zero()),
             )?,
         ])?;
         Self::try_new(surface, vec![bounds])
@@ -144,7 +146,7 @@ mod tests {
         let face = Face::try_new_from_surface(surface.clone())?;
 
         let mut scene = PrimitiveScene::new();
-        scene.add_face(&face, Color10::Blue)?;
+        scene.add_face(&face, Color10::Blue, 30)?;
         scene.add_convex_hull(surface.get_convex_hull()?, Color10::Blue);
 
         scene.save_to_file("test_outputs/nurbs_surface.html")?;
@@ -255,7 +257,7 @@ mod tests {
             let mut scene = PrimitiveScene::new();
             for (i, surf) in faces.iter().enumerate() {
                 let face = Face::try_new_from_surface(surf.clone())?;
-                scene.add_face(&face, colors[i % colors.len()])?;
+                scene.add_face(&face, colors[i % colors.len()], 30)?;
                 scene.add_convex_hull(surf.get_convex_hull()?, colors[i % colors.len()]);
             }
             let filename = format!("test_outputs/nurbs_surface_subdivide_level_{}.html", level);

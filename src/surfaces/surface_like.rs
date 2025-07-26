@@ -25,6 +25,21 @@ pub trait SurfaceLike: Display {
     where
         Self: Sized;
 
+    fn split_u(&self) -> AlgebraResult<(Self, Self)>
+    where
+        Self: Sized {
+        let u_range = self.u_span().1 - self.u_span().0;
+        let u = self.u_span().0 + (u_range / EFloat64::from(2.0)).unwrap_or(EFloat64::zero());
+        self.subdivide_u(u)
+    }
+    fn split_v(&self) -> AlgebraResult<(Self, Self)>
+    where
+        Self: Sized {
+        let v_range = self.v_span().1 - self.v_span().0;
+        let v = self.v_span().0 + (v_range / EFloat64::from(2.0)).unwrap_or(EFloat64::zero());
+        self.subdivide_v(v)
+    }
+
     /// Returns the convex hull of the control points of the surface.
     /// This is the smallest convex set containing all control points.
     fn get_convex_hull(&self) -> AlgebraResult<ConvexHull>;

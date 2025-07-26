@@ -5,12 +5,11 @@ use crate::{
     surfaces::surface_like::SurfaceLike,
 };
 
-pub fn rasterize_surface(face: &Face) -> AlgebraResult<Vec<TriangleFace>> {
+pub fn rasterize_surface(face: &Face, n: usize) -> AlgebraResult<Vec<TriangleFace>> {
     let context =
         |err: AlgebraError| err.with_context(format!("rasterizing surface: {}", face.surface));
 
     let mut triangles = Vec::new();
-    let n = 30;
     for i in 0..n {
         for j in 0..n {
             let span_u = face.surface.u_span();

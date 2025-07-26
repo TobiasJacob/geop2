@@ -1,11 +1,7 @@
 use crate::{
-    algebra_error::AlgebraResult,
-    curves::curve_like::CurveLike,
-    face::Face,
-    rasterize::{
+    algebra_error::AlgebraResult, curves::curve_like::CurveLike, face::Face, rasterize::{
         convex_hull::rasterize_convex_hull, curve::rasterize_curve, surface::rasterize_surface,
-    },
-    renderer::render_scene,
+    }, renderer::render_scene
 };
 
 use super::{
@@ -77,13 +73,23 @@ impl PrimitiveScene {
         Ok(())
     }
 
-    pub fn add_face(&mut self, face: &Face, color: Color10) -> AlgebraResult<()> {
-        let triangles = rasterize_surface(face)?;
+    pub fn add_face(&mut self, face: &Face, color: Color10, n: usize) -> AlgebraResult<()> {
+        let triangles = rasterize_surface(face, n)?;
         self.triangles.extend(
             triangles
                 .into_iter()
                 .map(|triangle| (triangle, color.clone())),
         );
+        Ok(())
+    }
+
+    pub fn add_face_wireframe(&mut self, face: &Face, color: Color10, n: usize) -> AlgebraResult<()> {
+        let triangles = rasterize_surface(face, n)?;
+        for t in triangles {
+            self.add_line(Line::try_new(t.a, t.b)?, color.clone());
+            self.add_line(Line::try_new(t.b, t.c)?, color.clone());
+            self.add_line(Line::try_new(t.c, t.a)?, color.clone());
+        }
         Ok(())
     }
 

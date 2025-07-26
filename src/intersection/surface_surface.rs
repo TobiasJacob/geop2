@@ -1,12 +1,61 @@
 use crate::algebra_error::AlgebraResult;
+use crate::primitives::efloat::EFloat64;
 use crate::primitives::point::Point;
 use crate::surfaces::nurbs_surface::NurbsSurface;
+use crate::surfaces::surface_like::SurfaceLike;
 
-pub fn surface_surface_intersection_non_overlap(
+// After this, refinement will be done, but no more points will be added to the curve.
+const INTERSECTION_SMALLEST_PATCH: f64 = 1e-2;
+
+// Tries to find a point that lies on both surfaces and is as accurate as possible.
+// If there are multiple such points, it returns an arbitrary one.
+// In the special case that it intersects with the boundary of the surface, it returns the point on the boundary.
+// If there is a point with colinear normals, it returns this point.
+fn _surface_surface_intersection_non_overlap_refinement(
     _surface1: &NurbsSurface,
     _surface2: &NurbsSurface,
-) -> AlgebraResult<Vec<Point>> {
-    Ok(vec![])
+) -> AlgebraResult<Point> {
+    Ok(Point::zero())
+}
+
+// 
+pub fn surface_surface_intersection_non_overlap(
+    surface1: &NurbsSurface,
+    surface2: &NurbsSurface,
+    divide_u_or_v: bool
+) -> AlgebraResult<Vec<NurbsSurface>> {
+    if surface1
+        .get_convex_hull()?
+        .intersects(&surface2.get_convex_hull()?) == false
+    {
+        return Ok(vec![]);
+    }
+
+    if surface1.u_span().1 - surface1.u_span().0 <= EFloat64::from(INTERSECTION_SMALLEST_PATCH) {
+        return Ok(vec![surface1.clone(), surface2.clone()]);
+    }
+
+    let (s1a, s1b) = if divide_u_or_v {
+        surface1.split_u()?
+    } else {
+        surface1.split_v()?
+    };
+    let (s2a, s2b) = if divide_u_or_v {
+        surface2.split_u()?
+    } else {
+        surface2.split_v()?
+    };
+
+    let intersections = vec![
+        surface_surface_intersection_non_overlap(&s1a, &s2a, !divide_u_or_v)?,
+        surface_surface_intersection_non_overlap(&s1a, &s2b, !divide_u_or_v)?,
+        surface_surface_intersection_non_overlap(&s1b, &s2a, !divide_u_or_v)?,
+        surface_surface_intersection_non_overlap(&s1b, &s2b, !divide_u_or_v)?,
+    ].iter().flatten()
+        .map(|s| s.clone())
+        .collect::<Vec<NurbsSurface>>();
+
+    return Ok(intersections);
 }
 
 
@@ -168,12 +217,17 @@ mod tests {
             2,
             2,
         )?;
-        let face2 = Face::try_new_from_surface(surface2)?;
+        let face2 = Face::try_new_from_surface(surface2.clone())?;
 
         let mut scene = PrimitiveScene::new();
-        scene.add_face(&face1, Color10::Blue)?;
-        scene.add_face(&face2, Color10::Red)?;
-        scene.add_convex_hull(surface1.get_convex_hull()?, Color10::Blue);
+        scene.add_face_wireframe(&face1, Color10::Blue, 20)?;
+        scene.add_face_wireframe(&face2, Color10::Red, 20)?;
+
+        let intersection = surface_surface_intersection_non_overlap(&surface1, &surface2, true)?;
+        for surface in intersection {
+            let face = Face::try_new_from_surface(surface)?;
+            scene.add_face(&face, Color10::Green, 1)?;
+        }
 
         scene.save_to_file("test_outputs/nurbs_surface_intersection_non_overlap.html")?;
 
