@@ -3,8 +3,6 @@ use std::{fmt::{self, Display}};
 use crate::{
     algebra_error::{AlgebraError, AlgebraResult},
     contour::Contour,
-    curves::nurbs_curve::NurbsCurve,
-    primitives::{efloat::EFloat64, point::Point},
     surfaces::{nurbs_surface::NurbsSurface, surface_like::SurfaceLike},
 };
 
@@ -28,22 +26,10 @@ impl Face {
         let v_span = surface.v_span();
         // Create a contour that goes from 0,0 to 1,0 to 1,1 to 0,1 to 0,0
         let bounds = Contour::try_new(vec![
-            NurbsCurve::new_line(
-                Point::new(u_span.0, v_span.0, EFloat64::zero()),
-                Point::new(u_span.1, v_span.0, EFloat64::zero()),
-            )?,
-            NurbsCurve::new_line(
-                Point::new(u_span.1, v_span.0, EFloat64::zero()),
-                Point::new(u_span.1, v_span.1, EFloat64::zero()),
-            )?,
-            NurbsCurve::new_line(
-                Point::new(u_span.1, v_span.1, EFloat64::zero()),
-                Point::new(u_span.0, v_span.1, EFloat64::zero()),
-            )?,
-            NurbsCurve::new_line(
-                Point::new(u_span.0, v_span.1, EFloat64::zero()),
-                Point::new(u_span.0, v_span.0, EFloat64::zero()),
-            )?,
+            surface.iso_curve_u(u_span.0)?,
+            surface.iso_curve_v(v_span.1)?,
+            surface.iso_curve_u(u_span.1)?.flip()?,
+            surface.iso_curve_v(v_span.0)?.flip()?,
         ])?;
         Self::try_new(surface, vec![bounds])
     }
@@ -63,7 +49,7 @@ impl Display for Face {
 
 #[cfg(test)]
 mod tests {
-    use crate::{primitives::{color::{Color10, COLORS}, efloat::EFloat64, primitive_scene::PrimitiveScene}, surfaces::surface_like::SurfaceLike};
+    use crate::{primitives::{color::{Color10, COLORS}, efloat::EFloat64, point::Point, primitive_scene::PrimitiveScene}, surfaces::surface_like::SurfaceLike};
 
     use super::*;
 

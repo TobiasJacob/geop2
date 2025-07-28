@@ -163,7 +163,7 @@ impl NurbsSurface {
 
     /// A generic knot–span finder.
     /// Returns an index k such that knot_vector[k] ≤ t < knot_vector[k+1].
-    fn find_span_generic(knot_vector: &[EFloat64], t: EFloat64) -> Option<usize> {
+    fn find_span_generic(knot_vector: &[EFloat64], t: EFloat64, degree: usize) -> Option<usize> {
         if t < knot_vector[0] {
             return None;
         }
@@ -171,7 +171,7 @@ impl NurbsSurface {
             return None;
         }
         if t == knot_vector[knot_vector.len() - 1] {
-            let span = knot_vector.len() - 1;
+            let span = knot_vector.len() - degree - 1;
             return Some(span);
         }
         let mut span = 0;
@@ -183,12 +183,12 @@ impl NurbsSurface {
 
     /// Finds the knot span index for a given parameter `t` in the u–direction.
     pub fn find_span_u(&self, t: EFloat64) -> Option<usize> {
-        NurbsSurface::find_span_generic(&self.knot_vector_u, t)
+        NurbsSurface::find_span_generic(&self.knot_vector_u, t, self.degree_u)
     }
 
     /// Finds the knot span index for a given parameter `t` in the v–direction.
     pub fn find_span_v(&self, t: EFloat64) -> Option<usize> {
-        NurbsSurface::find_span_generic(&self.knot_vector_v, t)
+        NurbsSurface::find_span_generic(&self.knot_vector_v, t, self.degree_v)
     }
 
     /// Inserts the knot value `t` once into the NURBS surface in the u–direction using the standard

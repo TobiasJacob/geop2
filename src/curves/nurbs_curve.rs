@@ -105,6 +105,22 @@ impl NurbsCurve {
         self.degree
     }
 
+    pub fn flip(&self) -> AlgebraResult<Self> {
+        let flipped_coefficients: Vec<Point> = self.coefficients.iter().rev().cloned().collect();
+        let flipped_weights: Vec<EFloat64> = self.weights.iter().rev().cloned().collect();
+        let mut flipped_knot_vector: Vec<EFloat64> = Vec::with_capacity(self.knot_vector.len());
+        let max_knot_value = self.knot_vector[self.knot_vector.len() - 1].clone();
+        for knot in self.knot_vector.iter().rev() {
+            flipped_knot_vector.push(max_knot_value.clone() - knot.clone());
+        }
+        NurbsCurve::try_new(
+            flipped_coefficients,
+            flipped_weights,
+            flipped_knot_vector,
+            self.degree,
+        )
+    }
+
     /// Finds the knot span index for a given parameter `t`.
     fn find_span(&self, t: EFloat64) -> Option<usize> {
         if t < self.knot_vector[0] {
