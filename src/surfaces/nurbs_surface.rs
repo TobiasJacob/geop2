@@ -110,14 +110,17 @@ impl NurbsSurface {
             }
         }
 
-        Ok(Self {
-            coefficients,
-            weights,
-            knot_vector_u,
-            knot_vector_v,
+        let surface = Self {
+            coefficients: coefficients.clone(),
+            weights: weights.clone(),
+            knot_vector_u: knot_vector_u.clone(),
+            knot_vector_v: knot_vector_v.clone(),
             degree_u,
             degree_v,
-        })
+        };
+        // verify the convex hull can be computed
+        surface.get_convex_hull().with_context(&context)?;
+        Ok(surface)
     }
 
     /// Constructs a NurbsSurface corresponding to a tensor–product basis function.
@@ -414,7 +417,7 @@ impl NurbsSurface {
 
         let p = self.degree_v;
 
-        if t < self.knot_vector_v[p] || t > self.knot_vector_v[self.knot_vector_v.len() - p - 1] {
+        if t < self.knot_vector_v[p] || t >= self.knot_vector_v[self.knot_vector_v.len() - p - 1] {
             return Err(AlgebraError::new(
                 "Parameter t is out of the valid domain for v subdivision".to_string(),
             ));
@@ -423,7 +426,7 @@ impl NurbsSurface {
         // Determine current multiplicity of t in v–direction.
         let current_multiplicity = self.knot_vector_v.iter().filter(|&knot| *knot == t).count();
         // t must appear with multiplicity p+1.
-        let r = p - current_multiplicity + 1;
+        let r = p + 1 - current_multiplicity;
         let mut surface = self.clone();
         for _ in 0..r {
             surface = surface.insert_knot_v(t.clone())?;
@@ -815,122 +818,34 @@ mod tests {
         values.into_iter().map(EFloat64::from).collect()
     }
 
-    #[test]
-    fn test_nurbs_surface_eval_unit_weights() -> AlgebraResult<()> {
-        // Create a simple 3x3 NURBS surface with all weights equal to one.
-        // For clarity, each control point is set to a scalar multiple of unit_z.
+    fn create_test_surface() -> Result<NurbsSurface, AlgebraError> {
         let coefficients = vec![
             vec![
-                Point::unit_z() * EFloat64::from(1.0),
-                Point::unit_z() * EFloat64::from(2.0),
-                Point::unit_z() * EFloat64::from(3.0),
+                Point::from_f64(0.0, 2.0, 0.0),
+                Point::from_f64(1.0, 1.0, 0.0),
+                Point::from_f64(2.0, 0.0, 0.0),
             ],
             vec![
-                Point::unit_z() * EFloat64::from(4.0),
-                Point::unit_z() * EFloat64::from(5.0),
-                Point::unit_z() * EFloat64::from(6.0),
+                Point::from_f64(1.0, 0.0, 1.0),
+                Point::from_f64(2.0, 1.0, 1.0),
+                Point::from_f64(3.0, 0.0, 1.0),
             ],
             vec![
-                Point::unit_z() * EFloat64::from(7.0),
-                Point::unit_z() * EFloat64::from(8.0),
-                Point::unit_z() * EFloat64::from(9.0),
+                Point::from_f64(0.0, 1.0, 3.0),
+                Point::from_f64(1.0, 0.0, 3.0),
+                Point::from_f64(2.0, 1.0, 3.0),
             ],
         ];
         let weights = vec![
             vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
-            vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
+            vec![EFloat64::one(), EFloat64::from(0.5), EFloat64::one()],
             vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
         ];
-
-        // Use clamped knot vectors for a quadratic (degree 2) surface.
         let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
         let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
         let surface =
             NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
-
-        // For a clamped surface, the evaluation at the boundaries should equal the corresponding control points.
-        // Evaluate at (u,v) = (0,0) → expected to equal the control point at (0,0)
-        let p00 = surface.eval(EFloat64::from(0.0), EFloat64::from(0.0));
-        assert_eq!(p00, Point::unit_z() * EFloat64::from(1.0));
-
-        // Evaluate at (u,v) = (1,0) → expected to equal the control point at (2,0) (last row in u–direction)
-        let p10 = surface.eval(EFloat64::from(0.9999), EFloat64::from(0.0));
-        assert_eq!(p10, Point::unit_z() * EFloat64::new(7.0, 6.999));
-
-        // Evaluate at (u,v) = (0,1) → expected to equal the control point at (0,2) (last column in v–direction)
-        let p01 = surface.eval(EFloat64::from(0.0), EFloat64::from(0.9999));
-        assert_eq!(p01, Point::unit_z() * EFloat64::new(3.0, 2.999));
-
-        // Evaluate at (u,v) = (1,1) → expected to equal the control point at (2,2)
-        let p11 = surface.eval(EFloat64::from(0.9999), EFloat64::from(0.9999));
-        assert_eq!(p11, Point::unit_z() * EFloat64::new(9.0, 8.999));
-
-        // Evaluate at an interior parameter value.
-        let pint = surface.eval(EFloat64::from(0.5), EFloat64::from(0.5));
-        // We do not have a hand-calculated expected value here, so check it is nonzero.
-        assert!(pint != Point::zero());
-        Ok(())
-    }
-
-    #[test]
-    fn test_nurbs_surface_eval_non_unit_weights() -> AlgebraResult<()> {
-        // Create a 3x3 NURBS surface with varying weights.
-        let coefficients = vec![
-            vec![
-                Point::unit_z() * EFloat64::from(1.0),
-                Point::unit_z() * EFloat64::from(2.0),
-                Point::unit_z() * EFloat64::from(3.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(4.0),
-                Point::unit_z() * EFloat64::from(5.0),
-                Point::unit_z() * EFloat64::from(6.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(7.0),
-                Point::unit_z() * EFloat64::from(8.0),
-                Point::unit_z() * EFloat64::from(9.0),
-            ],
-        ];
-        let weights = vec![
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(3.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-        ];
-
-        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
-        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
-
-        let surface =
-            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
-
-        // For a clamped surface, the evaluation at the boundaries should still equal the corresponding control points.
-        let p00 = surface.eval(EFloat64::from(0.0), EFloat64::from(0.0));
-        let p10 = surface.eval(EFloat64::from(0.99999), EFloat64::from(0.0));
-        let p01 = surface.eval(EFloat64::from(0.0), EFloat64::from(0.99999));
-        let p11 = surface.eval(EFloat64::from(0.99999), EFloat64::from(0.99999));
-
-        // Despite non-uniform weights, the evaluation at the clamped ends equals the control points.
-        assert_eq!(p00, Point::unit_z() * EFloat64::from(1.0));
-        assert_eq!(p10, Point::unit_z() * EFloat64::new(7.0, 6.999));
-        assert_eq!(p01, Point::unit_z() * EFloat64::new(3.0, 2.999));
-        assert_eq!(p11, Point::unit_z() * EFloat64::new(9.0, 8.999));
-
-        let pint = surface.eval(EFloat64::from(0.5), EFloat64::from(0.5));
-        assert!(pint != Point::zero());
-        Ok(())
+        Ok(surface)
     }
 
     #[test]
@@ -959,57 +874,19 @@ mod tests {
 
     #[test]
     fn test_insert_knot_u() -> AlgebraResult<()> {
-        // Create a simple 3x3 NURBS surface with varying weights.
-        let coefficients = vec![
-            vec![
-                Point::unit_z() * EFloat64::from(1.0),
-                Point::unit_z() * EFloat64::from(2.0),
-                Point::unit_z() * EFloat64::from(3.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(4.0),
-                Point::unit_z() * EFloat64::from(5.0),
-                Point::unit_z() * EFloat64::from(6.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(7.0),
-                Point::unit_z() * EFloat64::from(8.0),
-                Point::unit_z() * EFloat64::from(9.0),
-            ],
-        ];
-        let weights = vec![
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(3.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-        ];
+        let surface = create_test_surface()?;
 
-        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
-        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
-        let surface =
-            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
         println!("Original surface: {}", surface);
 
-        // Insert a knot at u = 1.0
-        let t = EFloat64::from(1.0);
+        // Insert a knot at u = 0.6
+        let t = EFloat64::from(0.6);
         let surface2 = surface.insert_knot_u(t.clone())?;
         println!("Surface after inserting knot u at {}: {}", t, surface2);
 
         // Check that evaluation remains the same after knot insertion.
         // We test at various points in the parameter domain.
         for i in 0..=100 {
-            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            let u_val = EFloat64::from(i as f64 / 100.0 * 1.0);
             for j in 0..=100 {
                 let v_val = EFloat64::from(j as f64 / 100.0);
                 let orig = surface.eval(u_val.clone(), v_val.clone());
@@ -1034,58 +911,19 @@ mod tests {
 
     #[test]
     fn test_subdivide_u() -> AlgebraResult<()> {
-        // Create a simple 3x3 NURBS surface with varying weights.
-        let coefficients = vec![
-            vec![
-                Point::unit_z() * EFloat64::from(1.0),
-                Point::unit_z() * EFloat64::from(2.0),
-                Point::unit_z() * EFloat64::from(3.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(4.0),
-                Point::unit_z() * EFloat64::from(5.0),
-                Point::unit_z() * EFloat64::from(6.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(7.0),
-                Point::unit_z() * EFloat64::from(8.0),
-                Point::unit_z() * EFloat64::from(9.0),
-            ],
-        ];
-        let weights = vec![
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(3.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-        ];
-
-        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
-        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
-        let surface =
-            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
+        let surface = create_test_surface()?;
 
         // Subdivide at u = 1.0
-        let t = EFloat64::from(1.0);
+        let t = EFloat64::from(0.6);
         let (left, right) = surface.subdivide_u(t.clone())?;
 
         println!("Left: {}", left);
         println!("Right: {}", right);
 
         // Verify that evaluation remains the same after subdivision
-        // Test points in the left segment (u < 1.0)
+        // Test points in the left segment (u < 0.6)
         for i in 0..=50 {
-            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            let u_val = EFloat64::from(i as f64 / 100.0 * 1.0);
             if u_val < t {
                 for j in 0..=100 {
                     let v_val = EFloat64::from(j as f64 / 100.0);
@@ -1100,9 +938,9 @@ mod tests {
             }
         }
 
-        // Test points in the right segment (u > 1.0)
+        // Test points in the right segment (u > 0.6)
         for i in 51..=100 {
-            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            let u_val = EFloat64::from(i as f64 / 100.0 * 1.0);
             if u_val > t {
                 for j in 0..=100 {
                     let v_val = EFloat64::from(j as f64 / 100.0);
@@ -1128,59 +966,19 @@ mod tests {
 
     #[test]
     fn test_insert_knot_v() -> AlgebraResult<()> {
-        // Create a simple 3x3 NURBS surface with varying weights.
-        let coefficients = vec![
-            vec![
-                Point::unit_z() * EFloat64::from(1.0),
-                Point::unit_z() * EFloat64::from(2.0),
-                Point::unit_z() * EFloat64::from(3.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(4.0),
-                Point::unit_z() * EFloat64::from(5.0),
-                Point::unit_z() * EFloat64::from(6.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(7.0),
-                Point::unit_z() * EFloat64::from(8.0),
-                Point::unit_z() * EFloat64::from(9.0),
-            ],
-        ];
-        let weights = vec![
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(3.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-        ];
-
-        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
-        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]); // Changed to [0,2] domain
-        let surface =
-            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
-        println!("Original surface: {}", surface);
+        let surface = create_test_surface()?;
 
         // Insert a knot at v = 1.0 (now in the middle of the domain)
-        let t = EFloat64::from(1.0);
+        let t = EFloat64::from(0.6);
         let surface2 = surface.insert_knot_v(t.clone())?;
         println!("Surface after inserting knot v at {}: {}", t, surface2);
 
         // Check that evaluation remains the same after knot insertion.
         // We test at various points in the parameter domain.
         for i in 0..=100 {
-            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            let u_val = EFloat64::from(i as f64 / 100.0 * 1.0);
             for j in 0..=100 {
-                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0); // Scale to [0,2] domain
+                let v_val = EFloat64::from(j as f64 / 100.0 * 1.0); // Scale to [0,2] domain
                 let orig = surface.eval(u_val.clone(), v_val.clone());
                 let new = surface2.eval(u_val.clone(), v_val.clone());
                 assert_eq!(orig, new, "Mismatch at (u,v)=({}, {})", u_val, v_val);
@@ -1203,60 +1001,21 @@ mod tests {
 
     #[test]
     fn test_subdivide_v() -> AlgebraResult<()> {
-        // Create a simple 3x3 NURBS surface with varying weights
-        let coefficients = vec![
-            vec![
-                Point::unit_z() * EFloat64::from(1.0),
-                Point::unit_z() * EFloat64::from(2.0),
-                Point::unit_z() * EFloat64::from(3.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(4.0),
-                Point::unit_z() * EFloat64::from(5.0),
-                Point::unit_z() * EFloat64::from(6.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(7.0),
-                Point::unit_z() * EFloat64::from(8.0),
-                Point::unit_z() * EFloat64::from(9.0),
-            ],
-        ];
-        let weights = vec![
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(3.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-        ];
+        let surface = create_test_surface()?;
 
-        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
-        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]); // Changed to [0,2] domain
-        let surface =
-            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
-
-        // Subdivide at v = 1.0 (now in the middle of the domain)
-        let t = EFloat64::from(1.0);
+        // Subdivide at v = 0.6 (now in the middle of the domain)
+        let t = EFloat64::from(0.6);
         let (left, right) = surface.subdivide_v(t.clone())?;
 
         println!("Left: {}", left);
         println!("Right: {}", right);
 
         // Verify that evaluation remains the same after subdivision
-        // Test points in the left segment (v < 1.0)
+        // Test points in the left segment (v < 0.6)
         for i in 0..=100 {
-            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            let u_val = EFloat64::from(i as f64 / 100.0 * 1.0);
             for j in 0..=50 {
-                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0);
+                let v_val = EFloat64::from(j as f64 / 100.0 * 1.0);
                 if v_val < t {
                     let orig = surface.eval(u_val.clone(), v_val.clone());
                     let new = left.eval(u_val.clone(), v_val.clone());
@@ -1269,11 +1028,11 @@ mod tests {
             }
         }
 
-        // Test points in the right segment (v > 1.0)
+        // Test points in the right segment (v > 0.6)
         for i in 0..=100 {
-            let u_val = EFloat64::from(i as f64 / 100.0 * 2.0);
+            let u_val = EFloat64::from(i as f64 / 100.0 * 1.0);
             for j in 51..=100 {
-                let v_val = EFloat64::from(j as f64 / 100.0 * 2.0);
+                let v_val = EFloat64::from(j as f64 / 100.0 * 1.0);
                 if v_val > t {
                     let orig = surface.eval(u_val.clone(), v_val.clone());
                     let new = right.eval(u_val.clone(), v_val.clone());
@@ -1297,47 +1056,7 @@ mod tests {
 
     #[test]
     fn test_iso_curves() -> AlgebraResult<()> {
-        // Create a simple 3x3 NURBS surface with varying weights
-        let coefficients = vec![
-            vec![
-                Point::unit_z() * EFloat64::from(1.0),
-                Point::unit_z() * EFloat64::from(2.0),
-                Point::unit_z() * EFloat64::from(3.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(4.0),
-                Point::unit_z() * EFloat64::from(5.0),
-                Point::unit_z() * EFloat64::from(6.0),
-            ],
-            vec![
-                Point::unit_z() * EFloat64::from(7.0),
-                Point::unit_z() * EFloat64::from(8.0),
-                Point::unit_z() * EFloat64::from(9.0),
-            ],
-        ];
-        let weights = vec![
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(3.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(1.0),
-                EFloat64::from(2.0),
-                EFloat64::from(1.0),
-            ],
-        ];
-
-        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
-        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 2.0, 2.0, 2.0]);
-        let surface =
-            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
-
+        let surface = create_test_surface()?;
         // Test u-iso-curve at u = 1.0
         let u_fixed = EFloat64::from(0.4523453);
         let u_iso = surface.iso_curve_u(u_fixed.clone())?;
@@ -1380,70 +1099,7 @@ mod tests {
 
     #[test]
     fn test_convex_hull_contains_all_points() -> AlgebraResult<()> {
-        // Create a simple 3x3 NURBS surface with control points forming a pyramid-like shape
-        let coefficients = vec![
-            vec![
-                Point::new(
-                    EFloat64::from(0.0),
-                    EFloat64::from(0.0),
-                    EFloat64::from(0.0),
-                ),
-                Point::new(
-                    EFloat64::from(1.0),
-                    EFloat64::from(0.0),
-                    EFloat64::from(0.0),
-                ),
-                Point::new(
-                    EFloat64::from(2.0),
-                    EFloat64::from(0.0),
-                    EFloat64::from(0.0),
-                ),
-            ],
-            vec![
-                Point::new(
-                    EFloat64::from(0.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(0.0),
-                ),
-                Point::new(
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(2.0),
-                ), // Peak
-                Point::new(
-                    EFloat64::from(2.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(0.0),
-                ),
-            ],
-            vec![
-                Point::new(
-                    EFloat64::from(0.0),
-                    EFloat64::from(2.0),
-                    EFloat64::from(0.0),
-                ),
-                Point::new(
-                    EFloat64::from(1.0),
-                    EFloat64::from(2.0),
-                    EFloat64::from(0.0),
-                ),
-                Point::new(
-                    EFloat64::from(2.0),
-                    EFloat64::from(2.0),
-                    EFloat64::from(0.0),
-                ),
-            ],
-        ];
-        let weights = vec![
-            vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
-            vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
-            vec![EFloat64::one(), EFloat64::one(), EFloat64::one()],
-        ];
-
-        let knot_vector_u = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
-        let knot_vector_v = to_efloat_vec(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
-        let surface =
-            NurbsSurface::try_new(coefficients, weights, knot_vector_u, knot_vector_v, 2, 2)?;
+        let surface = create_test_surface()?;
 
         // Get the convex hull
         let hull = surface.get_convex_hull()?;

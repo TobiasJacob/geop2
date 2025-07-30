@@ -7,7 +7,7 @@ use crate::primitives::point::Point;
 
 pub trait CurveLike: Display {
     // Parameter span
-    fn span(&self) -> AlgebraResult<(EFloat64, EFloat64)>;
+    fn span(&self) -> (EFloat64, EFloat64);
 
     /// Evaluates the curve at parameter t.
     fn eval(&self, t: EFloat64) -> Point;

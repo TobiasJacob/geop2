@@ -334,11 +334,11 @@ impl NurbsCurve {
 }
 
 impl CurveLike for NurbsCurve {
-    fn span(&self) -> AlgebraResult<(EFloat64, EFloat64)> {
-        Ok((
+    fn span(&self) -> (EFloat64, EFloat64) {
+        (
             self.knot_vector[0].clone(),
             self.knot_vector[self.knot_vector.len() - 1].clone(),
-        ))
+        )
     }
 
     fn eval(&self, t: EFloat64) -> Point {

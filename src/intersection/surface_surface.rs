@@ -1,4 +1,5 @@
 use crate::algebra_error::AlgebraResult;
+use crate::face::Face;
 use crate::primitives::efloat::EFloat64;
 use crate::primitives::point::Point;
 use crate::surfaces::nurbs_surface::NurbsSurface;
@@ -58,89 +59,29 @@ pub fn surface_surface_intersection_non_overlap(
     return Ok(intersections);
 }
 
+pub fn face_face_intersection_special_points(
+    _face1: &Face,
+    _face2: &Face,
+) -> AlgebraResult<Vec<Point>> {
+    todo!("Implement intersection for special points in face_face_intersection_special_points")
+    // let mut result = vec![];
+    // for b in face1.bounds {
+    //     for c in b.bounds {
+    //     }
+    // }
+    // Ok(result)
+}
+
 
 #[cfg(test)]
 mod tests {
-    use crate::{face::Face, primitives::{color::Color10, efloat::EFloat64, primitive_scene::PrimitiveScene}};
+    use crate::{face::Face, intersection::test_surface_1, primitives::{color::Color10, efloat::EFloat64, primitive_scene::PrimitiveScene}};
 
     use super::*;
 
     #[test]
     fn test_surface_surface_intersection_non_overlap() -> AlgebraResult<()> {
-        let surface1 = NurbsSurface::try_new(
-            vec![
-                vec![
-                    Point::from_f64(0.0, 2.0, 0.0),
-                    Point::from_f64(1.0, 1.0, 0.0),
-                    Point::from_f64(2.0, 0.0, 0.0),
-                    Point::from_f64(3.0, 1.0, 0.0),
-                ],
-                vec![
-                    Point::from_f64(0.0, 1.0, 1.0),
-                    Point::from_f64(1.0, 0.0, 1.0),
-                    Point::from_f64(2.0, 1.0, 1.0),
-                    Point::from_f64(3.0, 0.0, 1.0),
-                ],
-                vec![
-                    Point::from_f64(0.0, 0.0, 2.0),
-                    Point::from_f64(1.0, 1.0, 2.0),
-                    Point::from_f64(2.0, 0.0, 2.0),
-                    Point::from_f64(3.0, 1.0, 2.0),
-                ],
-                vec![
-                    Point::from_f64(0.0, 1.0, 3.0),
-                    Point::from_f64(1.0, 0.0, 3.0),
-                    Point::from_f64(2.0, 1.0, 3.0),
-                    Point::from_f64(3.0, 0.0, 3.0),
-                ],
-            ],
-            vec![
-                vec![
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                ],
-                vec![
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                ],
-                vec![
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                ],
-                vec![
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                    EFloat64::from(1.0),
-                ],
-            ],
-            vec![
-                EFloat64::from(0.0),
-                EFloat64::from(0.0),
-                EFloat64::from(0.0),
-                EFloat64::from(0.5),
-                EFloat64::from(1.0),
-                EFloat64::from(1.0),
-                EFloat64::from(1.0),
-            ],
-            vec![
-                EFloat64::from(0.0),
-                EFloat64::from(0.0),
-                EFloat64::from(0.0),
-                EFloat64::from(0.5),
-                EFloat64::from(1.0),
-                EFloat64::from(1.0),
-                EFloat64::from(1.0),
-            ],
-            2,
-            2,
-        )?;
+        let surface1 = test_surface_1()?;
         let face1 = Face::try_new_from_surface(surface1.clone())?;
 
         let surface2 = NurbsSurface::try_new(

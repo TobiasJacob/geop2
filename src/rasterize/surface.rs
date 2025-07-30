@@ -5,7 +5,7 @@ use crate::{
     surfaces::surface_like::SurfaceLike,
 };
 
-pub fn rasterize_surface(face: &Face, n: usize) -> AlgebraResult<Vec<TriangleFace>> {
+pub fn rasterize_face(face: &Face, n: usize) -> AlgebraResult<Vec<TriangleFace>> {
     let context =
         |err: AlgebraError| err.with_context(format!("rasterizing surface: {}", face.surface));
 

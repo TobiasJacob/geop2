@@ -1,7 +1,7 @@
 use crate::{
     algebra_error::AlgebraResult, curves::curve_like::CurveLike, face::Face, rasterize::{
-        convex_hull::rasterize_convex_hull, curve::rasterize_curve, surface::rasterize_surface,
-    }, renderer::render_scene
+        convex_hull::rasterize_convex_hull, curve::rasterize_curve, surface::rasterize_face,
+    }, renderer::render_scene, surfaces::nurbs_surface::NurbsSurface
 };
 
 use super::{
@@ -74,7 +74,7 @@ impl PrimitiveScene {
     }
 
     pub fn add_face(&mut self, face: &Face, color: Color10, n: usize) -> AlgebraResult<()> {
-        let triangles = rasterize_surface(face, n)?;
+        let triangles = rasterize_face(face, n)?;
         self.triangles.extend(
             triangles
                 .into_iter()
@@ -83,8 +83,14 @@ impl PrimitiveScene {
         Ok(())
     }
 
+    pub fn add_surface(&mut self, surface: &NurbsSurface, color: Color10, n: usize) -> AlgebraResult<()> {
+        self.add_face(
+            &Face::try_new_from_surface(surface.clone())?, color, n
+        )
+    }
+
     pub fn add_face_wireframe(&mut self, face: &Face, color: Color10, n: usize) -> AlgebraResult<()> {
-        let triangles = rasterize_surface(face, n)?;
+        let triangles = rasterize_face(face, n)?;
         for t in triangles {
             self.add_line(Line::try_new(t.a, t.b)?, color.clone());
             self.add_line(Line::try_new(t.b, t.c)?, color.clone());

@@ -7,7 +7,7 @@ use crate::{
 pub fn rasterize_curve(curve: &dyn CurveLike) -> AlgebraResult<Vec<Line>> {
     let context = |err: AlgebraError| err.with_context(format!("rasterizing curve: {}", curve));
 
-    let span = curve.span().with_context(&context)?;
+    let span = curve.span();
     let mut lines = Vec::new();
     let n = 30;
     let mut prev_point = curve.eval(span.0);

@@ -118,9 +118,10 @@ impl ConvexHull {
                 }
             }
             _ => {
-                // 1. Determine two unique_points with the minimum and maximum x-values (they are definitely part of the hull).
-                let mut min_x = unique_points[0];
-                let mut max_x = unique_points[0];
+                // 1. Determine two unique_points with the minimum and maximum values along the axis with the largest spread.
+                let (mut min_x, mut max_x) = (unique_points[0], unique_points[0]);
+                let (mut min_y, mut max_y) = (unique_points[0], unique_points[0]);
+                let (mut min_z, mut max_z) = (unique_points[0], unique_points[0]);
                 for p in unique_points.iter() {
                     if p.x < min_x.x {
                         min_x = *p;
@@ -128,7 +129,31 @@ impl ConvexHull {
                     if p.x > max_x.x {
                         max_x = *p;
                     }
+                    if p.y < min_y.y {
+                        min_y = *p;
+                    }
+                    if p.y > max_y.y {
+                        max_y = *p;
+                    }
+                    if p.z < min_z.z {
+                        min_z = *p;
+                    }
+                    if p.z > max_z.z {
+                        max_z = *p;
+                    }
                 }
+                let dx = (max_x.x - min_x.x).abs();
+                let dy = (max_y.y - min_y.y).abs();
+                let dz = (max_z.z - min_z.z).abs();
+
+                let (min_axis, max_axis) = if dx >= dy && dx >= dz {
+                    (min_x, max_x)
+                } else if dy >= dz {
+                    (min_y, max_y)
+                } else {
+                    (min_z, max_z)
+                };
+                let (min_x, max_x) = (min_axis, max_axis);
 
                 // 2. Determine the point that is farthest from the line (min_x, max_x).
                 let mut max_distance = EFloat64::from(-1.0);

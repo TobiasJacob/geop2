@@ -44,8 +44,8 @@ fn curve_curve_intersection_non_overlap(
         return Ok(Vec::new());
     }
 
-    let curve1_span = curve1.span()?;
-    let curve2_span = curve2.span()?;
+    let curve1_span = curve1.span();
+    let curve2_span = curve2.span();
     // println!("curve1_span: {:?}", curve1_span.1 - curve1_span.0);
     // println!("curve2_span: {:?}", curve2_span.1 - curve2_span.0);
 
