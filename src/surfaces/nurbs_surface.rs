@@ -3,7 +3,9 @@ use std::fmt::Display;
 use crate::{
     algebra_error::{AlgebraError, AlgebraResult, WithContext},
     curves::nurbs_curve::NurbsCurve,
-    primitives::{convex_hull::ConvexHull, efloat::EFloat64, nurb_helper_point::NurbHelperPoint, point::Point},
+    primitives::{
+        convex_hull::ConvexHull, efloat::EFloat64, nurb_helper_point::NurbHelperPoint, point::Point,
+    },
     surfaces::surface_like::SurfaceLike,
 };
 
@@ -39,19 +41,25 @@ impl NurbsSurface {
         degree_u: usize,
         degree_v: usize,
     ) -> AlgebraResult<Self> {
-        let context = |err: AlgebraError| err.with_context(format!("Attempting to create {}", Self {
-            coefficients: coefficients.clone(),
-            weights: weights.clone(),
-            knot_vector_u: knot_vector_u.clone(),
-            knot_vector_v: knot_vector_v.clone(),
-            degree_u,
-            degree_v,
-        }));
+        let context = |err: AlgebraError| {
+            err.with_context(format!(
+                "Attempting to create {}",
+                Self {
+                    coefficients: coefficients.clone(),
+                    weights: weights.clone(),
+                    knot_vector_u: knot_vector_u.clone(),
+                    knot_vector_v: knot_vector_v.clone(),
+                    degree_u,
+                    degree_v,
+                }
+            ))
+        };
 
         if coefficients.is_empty() {
             return Err(AlgebraError::new(
                 "NurbsSurface invalid input: coefficients cannot be empty".to_string(),
-            )).with_context(&context);
+            ))
+            .with_context(&context);
         }
         let num_rows = coefficients.len();
         let num_cols = coefficients[0].len();
@@ -61,7 +69,8 @@ impl NurbsSurface {
                 return Err(AlgebraError::new(
                     "NurbsSurface invalid input: inconsistent number of columns in coefficients"
                         .to_string(),
-                )).with_context(&context);
+                ))
+                .with_context(&context);
             }
             if weights.get(i).map_or(true, |w_row| w_row.len() != num_cols) {
                 return Err(AlgebraError::new(
@@ -74,13 +83,15 @@ impl NurbsSurface {
             return Err(AlgebraError::new(format!(
                 "NurbsSurface invalid input: number of rows ({}) <= degree_u ({})",
                 num_rows, degree_u
-            ))).with_context(&context);
+            )))
+            .with_context(&context);
         }
         if num_cols <= degree_v {
             return Err(AlgebraError::new(format!(
                 "NurbsSurface invalid input: number of columns ({}) <= degree_v ({})",
                 num_cols, degree_v
-            ))).with_context(&context);
+            )))
+            .with_context(&context);
         }
         if knot_vector_u.len() != num_rows + 1 + degree_u {
             return Err(AlgebraError::new(format!(
@@ -349,7 +360,9 @@ impl NurbsSurface {
     ///
     /// The v–direction remains unchanged.
     fn subdivide_u_impl(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
-        let context = |err: AlgebraError| err.with_context(format!("subdividing at u={} surface: {}", t, self));
+        let context = |err: AlgebraError| {
+            err.with_context(format!("subdividing at u={} surface: {}", t, self))
+        };
 
         let p = self.degree_u;
 
@@ -402,7 +415,8 @@ impl NurbsSurface {
             surface.knot_vector_v.clone(),
             p,
             surface.degree_v,
-        ).with_context(&context)?;
+        )
+        .with_context(&context)?;
 
         Ok((left_surface, right_surface))
     }
@@ -413,7 +427,9 @@ impl NurbsSurface {
     ///
     /// The u–direction remains unchanged.
     fn subdivide_v_impl(&self, t: EFloat64) -> AlgebraResult<(NurbsSurface, NurbsSurface)> {
-        let context = |err: AlgebraError| err.with_context(format!("subdividing at v={} surface: {}", t, self));
+        let context = |err: AlgebraError| {
+            err.with_context(format!("subdividing at v={} surface: {}", t, self))
+        };
 
         let p = self.degree_v;
 
@@ -457,7 +473,8 @@ impl NurbsSurface {
             left_knots_v,
             surface.degree_u,
             p,
-        ).with_context(&context)?;
+        )
+        .with_context(&context)?;
 
         // Build right surface: columns from (t_index - p) to end.
         let mut right_coeffs: Vec<Vec<Point>> = Vec::with_capacity(surface.coefficients.len());
@@ -474,7 +491,8 @@ impl NurbsSurface {
             right_knots_v,
             surface.degree_u,
             p,
-        ).with_context(&context)?;
+        )
+        .with_context(&context)?;
 
         Ok((left_surface, right_surface))
     }
@@ -727,6 +745,173 @@ impl NurbsSurface {
         // Use the existing ConvexHull implementation
         ConvexHull::try_new(points)
     }
+    /// Internal helper: Evaluate a local (p_u+1) x (p_v+1) block of homogeneous points
+    /// using the tensor-product de Boor algorithm at (u, v).
+    /// The block indices are aligned to the span indices `k_u`, `k_v` and the knot vectors.
+    fn eval_homogeneous_block(
+        &self,
+        mut d: Vec<Vec<NurbHelperPoint>>,
+        p_u: usize,
+        p_v: usize,
+        k_u: usize,
+        k_v: usize,
+        u: &EFloat64,
+        v: &EFloat64,
+    ) -> NurbHelperPoint {
+        // de Boor in u-direction
+        for r_u in 1..=p_u {
+            for j_u in (r_u..=p_u).rev() {
+                let alpha_u =
+                    match k_u + j_u < p_u || j_u + 1 + k_u - r_u >= self.knot_vector_u.len() {
+                        true => EFloat64::zero(),
+                        false => {
+                            let left_knot = self.knot_vector_u[j_u + k_u - p_u].clone();
+                            let right_knot = self.knot_vector_u[j_u + 1 + k_u - r_u].clone();
+                            ((u.clone() - left_knot) / (right_knot - left_knot))
+                                .unwrap_or(EFloat64::zero())
+                        }
+                    };
+                for j_v in 0..=p_v {
+                    let left = d[j_u - 1][j_v].clone();
+                    let right = d[j_u][j_v].clone();
+                    d[j_u][j_v] =
+                        left * (EFloat64::one() - alpha_u.clone()) + right * alpha_u.clone();
+                }
+            }
+        }
+
+        // de Boor in v-direction
+        for r_v in 1..=p_v {
+            for j_v in (r_v..=p_v).rev() {
+                let alpha_v =
+                    match k_v + j_v < p_v || j_v + 1 + k_v - r_v >= self.knot_vector_v.len() {
+                        true => EFloat64::zero(),
+                        false => {
+                            let left_knot = self.knot_vector_v[j_v + k_v - p_v].clone();
+                            let right_knot = self.knot_vector_v[j_v + 1 + k_v - r_v].clone();
+                            ((v.clone() - left_knot) / (right_knot - left_knot))
+                                .unwrap_or(EFloat64::zero())
+                        }
+                    };
+                let left = d[p_u][j_v - 1].clone();
+                let right = d[p_u][j_v].clone();
+                d[p_u][j_v] = left * (EFloat64::one() - alpha_v.clone()) + right * alpha_v.clone();
+            }
+        }
+
+        d[p_u][p_v].clone()
+    }
+
+    /// Computes first-order partial derivatives (du, dv) at parameter pair (u, v).
+    /// Returns (∂S/∂u, ∂S/∂v).
+    pub fn derivatives(&self, u: EFloat64, v: EFloat64) -> (Point, Point) {
+        // Find spans; if out of range, return zero derivatives.
+        let mut k_u = match self.find_span_u(u.clone()) {
+            Some(k) => k,
+            None => return (Point::zero(), Point::zero()),
+        };
+        let mut k_v = match self.find_span_v(v.clone()) {
+            Some(k) => k,
+            None => return (Point::zero(), Point::zero()),
+        };
+        let p_u = self.degree_u;
+        let p_v = self.degree_v;
+        if k_u == self.knot_vector_u.len() - 1 {
+            k_u -= p_u;
+        }
+        if k_v == self.knot_vector_v.len() - 1 {
+            k_v -= p_v;
+        }
+
+        // Build local homogeneous control block of size (p_u+1) x (p_v+1)
+        let mut q_block: Vec<Vec<NurbHelperPoint>> = Vec::with_capacity(p_u + 1);
+        for i in 0..=p_u {
+            if k_u + i < p_u || k_u + i - p_u >= self.coefficients.len() {
+                q_block.push(vec![NurbHelperPoint::zero(); p_v + 1]);
+            } else {
+                let mut row = Vec::with_capacity(p_v + 1);
+                for j in 0..=p_v {
+                    if k_v + j < p_v || k_v + j - p_v >= self.coefficients[0].len() {
+                        row.push(NurbHelperPoint::zero());
+                    } else {
+                        let ci = k_u + i - p_u;
+                        let cj = k_v + j - p_v;
+                        row.push(NurbHelperPoint::new(
+                            self.coefficients[ci][cj] * self.weights[ci][cj].clone(),
+                            self.weights[ci][cj].clone(),
+                        ));
+                    }
+                }
+                q_block.push(row);
+            }
+        }
+
+        // Evaluate base homogeneous point Q = (C, w)
+        let q = self.eval_homogeneous_block(q_block.clone(), p_u, p_v, k_u, k_v, &u, &v);
+        let p = q.to_point().unwrap_or(Point::zero());
+        let w = q.weight();
+
+        // Derivative along u
+        let du_point = if p_u == 0 {
+            Point::zero()
+        } else {
+            // Build derivative control block along u of size (p_u) x (p_v+1)
+            let mut q_u_block: Vec<Vec<NurbHelperPoint>> = Vec::with_capacity(p_u);
+            for i in 0..p_u {
+                // global row index in original control net corresponding to local i
+                let global_i = k_u + i - p_u;
+                let denom = self.knot_vector_u[global_i + p_u + 1].clone()
+                    - self.knot_vector_u[global_i + 1].clone();
+                let factor = (EFloat64::from(p_u as f64) / denom).unwrap_or(EFloat64::zero());
+                let mut row: Vec<NurbHelperPoint> = Vec::with_capacity(p_v + 1);
+                for j in 0..=p_v {
+                    // Q[i+1][j] - Q[i][j]
+                    let diff_point = q_block[i + 1][j].point - q_block[i][j].point;
+                    let diff_weight = q_block[i + 1][j].weight - q_block[i][j].weight;
+                    row.push(NurbHelperPoint::new(
+                        diff_point * factor,
+                        diff_weight * factor,
+                    ));
+                }
+                q_u_block.push(row);
+            }
+            let q_u = self.eval_homogeneous_block(q_u_block, p_u - 1, p_v, k_u, k_v, &u, &v);
+            // Convert to Euclidean derivative: P_u = (C_u - w_u * P) / w
+            let c_u = q_u.point;
+            let w_u = q_u.weight;
+            ((c_u - (p * w_u)) / w).unwrap_or(Point::zero())
+        };
+
+        // Derivative along v
+        let dv_point = if p_v == 0 {
+            Point::zero()
+        } else {
+            // Build derivative control block along v of size (p_u+1) x (p_v)
+            let mut q_v_block: Vec<Vec<NurbHelperPoint>> = Vec::with_capacity(p_u + 1);
+            for i in 0..=p_u {
+                let mut row: Vec<NurbHelperPoint> = Vec::with_capacity(p_v);
+                for j in 0..p_v {
+                    let global_j = k_v + j - p_v;
+                    let denom = self.knot_vector_v[global_j + p_v + 1].clone()
+                        - self.knot_vector_v[global_j + 1].clone();
+                    let factor = (EFloat64::from(p_v as f64) / denom).unwrap_or(EFloat64::zero());
+                    let diff_point = q_block[i][j + 1].point - q_block[i][j].point;
+                    let diff_weight = q_block[i][j + 1].weight - q_block[i][j].weight;
+                    row.push(NurbHelperPoint::new(
+                        diff_point * factor,
+                        diff_weight * factor,
+                    ));
+                }
+                q_v_block.push(row);
+            }
+            let q_v = self.eval_homogeneous_block(q_v_block, p_u, p_v - 1, k_u, k_v, &u, &v);
+            let c_v = q_v.point;
+            let w_v = q_v.weight;
+            ((c_v - (p * w_v)) / w).unwrap_or(Point::zero())
+        };
+
+        (du_point, dv_point)
+    }
 }
 
 impl SurfaceLike for NurbsSurface {
@@ -811,8 +996,11 @@ impl Display for NurbsSurface {
 mod tests {
     use super::*;
     use crate::curves::curve_like::CurveLike;
+    use crate::primitives::color::Color10;
     use crate::primitives::efloat::EFloat64;
+    use crate::primitives::line::Line;
     use crate::primitives::point::Point;
+    use crate::primitives::primitive_scene::PrimitiveScene;
 
     fn to_efloat_vec(values: Vec<f64>) -> Vec<EFloat64> {
         values.into_iter().map(EFloat64::from).collect()
@@ -1114,6 +1302,118 @@ mod tests {
                 );
             }
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_derivatives_finite_difference() -> AlgebraResult<()> {
+        let surface = create_test_surface()?;
+        let u = EFloat64::from(0.37);
+        let v = EFloat64::from(0.41);
+        let (su, sv) = surface.derivatives(u.clone(), v.clone());
+
+        // Finite difference check
+        let h = EFloat64::from(1e-6);
+        let p = surface.eval(u.clone(), v.clone());
+        let pu = surface.eval(u.clone() + h, v.clone());
+        let pv = surface.eval(u.clone(), v.clone() + h);
+        let du_fd = ((pu - p) / h).unwrap();
+        let dv_fd = ((pv - p) / h).unwrap();
+
+        // Compare components roughly
+        let tol = EFloat64::from(1e-3);
+        assert!(((su.x - du_fd.x).abs()) < tol);
+        assert!(((su.y - du_fd.y).abs()) < tol);
+        assert!(((su.z - du_fd.z).abs()) < tol);
+        assert!(((sv.x - dv_fd.x).abs()) < tol);
+        assert!(((sv.y - dv_fd.y).abs()) < tol);
+        assert!(((sv.z - dv_fd.z).abs()) < tol);
+        Ok(())
+    }
+
+    #[test]
+    fn test_derivatives_invariant_under_u_knot_insertion() -> AlgebraResult<()> {
+        let surface = create_test_surface()?;
+        let u = EFloat64::from(0.37);
+        let v = EFloat64::from(0.41);
+        let (su, sv) = surface.derivatives(u.clone(), v.clone());
+
+        // Insert a knot in u and compare derivatives remain the same
+        let t = EFloat64::from(0.6);
+        let surface2 = surface.insert_knot_u(t)?;
+        let (su2, sv2) = surface2.derivatives(u.clone(), v.clone());
+
+        let tol = EFloat64::from(1e-6);
+        assert!(((su.x - su2.x).abs()) < tol);
+        assert!(((su.y - su2.y).abs()) < tol);
+        assert!(((su.z - su2.z).abs()) < tol);
+        assert!(((sv.x - sv2.x).abs()) < tol);
+        assert!(((sv.y - sv2.y).abs()) < tol);
+        assert!(((sv.z - sv2.z).abs()) < tol);
+        Ok(())
+    }
+
+    #[test]
+    fn test_derivatives_invariant_under_v_knot_insertion() -> AlgebraResult<()> {
+        let surface = create_test_surface()?;
+        let u = EFloat64::from(0.37);
+        let v = EFloat64::from(0.41);
+        let (su, sv) = surface.derivatives(u.clone(), v.clone());
+
+        // Insert a knot in v and compare derivatives remain the same
+        let t = EFloat64::from(0.6);
+        let surface2 = surface.insert_knot_v(t)?;
+        let (su2, sv2) = surface2.derivatives(u.clone(), v.clone());
+
+        let tol = EFloat64::from(1e-6);
+        assert!(((su.x - su2.x).abs()) < tol);
+        assert!(((su.y - su2.y).abs()) < tol);
+        assert!(((su.z - su2.z).abs()) < tol);
+        assert!(((sv.x - sv2.x).abs()) < tol);
+        assert!(((sv.y - sv2.y).abs()) < tol);
+        assert!(((sv.z - sv2.z).abs()) < tol);
+        Ok(())
+    }
+
+    #[test]
+    fn test_derivatives_normal_nonzero() -> AlgebraResult<()> {
+        let surface = create_test_surface()?;
+        let u = EFloat64::from(0.37);
+        let v = EFloat64::from(0.41);
+        let (su, sv) = surface.derivatives(u, v);
+        let n = su.cross(sv);
+        // Normal should be non-zero for a regular patch
+        assert!(n.norm() > EFloat64::from(1e-6));
+        Ok(())
+    }
+
+    #[test]
+    fn test_surface_derivative_visualization() -> AlgebraResult<()> {
+        let surface = create_test_surface()?;
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_surface(&surface, Color10::Blue, 30)?;
+
+        // Do a grid of points on the surface
+        for i in 0..=30 {
+            for j in 0..=30 {
+                let u = EFloat64::from(i as f64 / 30.0);
+                let v = EFloat64::from(j as f64 / 30.0);
+                let base = surface.eval(u, v);
+
+                let (su, sv) = surface.derivatives(u, v);
+                let n = su.cross(sv);
+                let normal = n.normalize()?;
+                let point = base + normal * EFloat64::from(0.1);
+
+                let line = Line::try_new(base, point)?;
+                scene.add_line(line, Color10::Red);
+            }
+        }
+
+        // Test intersection
+        scene.save_to_file("test_outputs/surface_derivative.html")?;
 
         Ok(())
     }
