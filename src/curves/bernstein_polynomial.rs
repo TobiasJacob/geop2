@@ -332,7 +332,7 @@ impl BernsteinPolynomial<EFloat64> {
             let denom = EFloat64::from(2.0) * a * d[0];
 
             // d_k = (c_k - S) / denom
-            let numer = (c[k] - s);
+            let numer = c[k] - s;
             d[k] = (numer / denom)?;
         }
 
@@ -655,14 +655,85 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_bernstein_polynomial_derivative_squared_length() {
-        let p = test_bernstein_polynomial();
+    fn ph_cubic_from_w(
+        p0: (f64, f64),
+        w0: (f64, f64),
+        w1: (f64, f64),
+    ) -> AlgebraResult<BernsteinPolynomial<Point>> {
+        let (a0, b0) = w0;
+        let (a1, b1) = w1;
 
-        let deriv = p.derivative();
-        let deriv_square = deriv.dot(&deriv);
-        println!("Derivative squared: {}", &deriv_square);
-        let deriv_length = deriv_square.sqrt().unwrap();
-        println!("Derivative length: {}", deriv_length);
+        // complex square and product in R^2
+        let sq = |a: f64, b: f64| (a * a - b * b, 2.0 * a * b);
+        let mul = |a: f64, b: f64, c: f64, d: f64| (a * c - b * d, a * d + b * c);
+
+        let d0 = sq(a0, b0);
+        let d1 = mul(a0, b0, a1, b1);
+        let d2 = sq(a1, b1);
+
+        let n = EFloat64::from(3.0); // cubic => divide D_i by 3
+        let p0p = Point::from_f64(p0.0, p0.1, 0.0);
+        let p1p = p0p + (Point::from_f64(d0.0, d0.1, 0.0) / n)?;
+        let p2p = p1p + (Point::from_f64(d1.0, d1.1, 0.0) / n)?;
+        let p3p = p2p + (Point::from_f64(d2.0, d2.1, 0.0) / n)?;
+
+        Ok(BernsteinPolynomial::new(vec![p0p, p1p, p2p, p3p]))
+    }
+
+    #[test]
+    fn test_ph_cubic_derivative_speed_sqrt() -> AlgebraResult<()> {
+        // Any non-degenerate choice works; keep z=0
+        let c = ph_cubic_from_w((0.0, 0.0), (1.0, 2.0), (2.0, -1.0))?;
+        let deriv = c.derivative(); // degree 2
+        let speed_sq = deriv.dot(&deriv); // degree 4
+        let speed = speed_sq.sqrt().expect("PH curve: sqrt must exist");
+        assert_eq!(speed.degree(), 2); // sqrt degree n-1 = 2
+        // sanity: (sqrt)^2 == speed_sq
+        let back = speed.clone() * speed.clone();
+        assert!(
+            back.coefficients
+                .iter()
+                .zip(speed_sq.coefficients.iter())
+                .all(|(a, b)| *a == *b)
+        );
+
+        // Render the curve and the normalized derivative using the speed polynomial
+
+        // Sample points along the curve
+        let n_samples = 32;
+
+        // Compose the scene
+        let mut scene = PrimitiveScene::new();
+        scene.add_curve(&c, Color10::Blue)?;
+        scene.add_curve(&deriv, Color10::Red)?;
+
+        // render the control polygon of deriv
+        for c in deriv.coefficients.iter() {
+            scene.add_point(*c, Color10::Green);
+        }
+
+        for i in 0..=n_samples {
+            let t = EFloat64::from(i as f64 / n_samples as f64);
+            let pt = c.eval(t);
+            let deriv_vec = deriv.eval(t);
+            let speed_val = speed.eval(t);
+
+            // Normalize the derivative (tangent)
+            let tangent = if speed_val != EFloat64::zero() {
+                (deriv_vec / speed_val)?
+            } else {
+                Point::zero()
+            };
+
+            // For visualization, scale the tangent for clarity
+            let tangent_tip = pt + tangent * EFloat64::from(0.5);
+
+            let line = Line::try_new(pt, tangent_tip)?;
+            scene.add_line(line, Color10::Red);
+        }
+
+        scene.save_to_file("test_outputs/ph_cubic_derivative_speed_sqrt.html")?;
+
+        Ok(())
     }
 }
