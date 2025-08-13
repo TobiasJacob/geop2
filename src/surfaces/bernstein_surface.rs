@@ -829,12 +829,13 @@ mod tests {
     }
 
     #[test]
-    fn test_derivatives_surfaces() {
+    fn test_derivatives_surfaces() -> AlgebraResult<()> {
         let s = sample_surface();
         let su = s.derivative_u();
         let sv = s.derivative_v();
         // visualize few tangents
         let mut scene = PrimitiveScene::new();
+        scene.add_surface_like(&s, Color10::Blue, 30)?;
         for i in 0..=4 {
             for j in 0..=4 {
                 let u = EFloat64::from(i as f64 / 4.0);
@@ -842,17 +843,16 @@ mod tests {
                 let p = s.eval(u.clone(), v.clone());
                 let tu = su.eval(u.clone(), v.clone()) * EFloat64::from(0.1);
                 let tv = sv.eval(u.clone(), v.clone()) * EFloat64::from(0.1);
-                let _ = scene.add_line(Line::try_new(p, p + tu).unwrap(), Color10::Red);
-                let _ = scene.add_line(Line::try_new(p, p + tv).unwrap(), Color10::Green);
+                scene.add_line(Line::try_new(p, p + tu).unwrap(), Color10::Red);
+                scene.add_line(Line::try_new(p, p + tv).unwrap(), Color10::Green);
             }
         }
-        scene
-            .save_to_file("test_outputs/bernstein_surface_derivative.html")
-            .unwrap();
+        scene.save_to_file("test_outputs/bernstein_surface_derivative.html")?;
+        Ok(())
     }
 
     #[test]
-    fn test_add_sub_scalar_mul() {
+    fn test_add_sub_scalar_mul() -> AlgebraResult<()> {
         let s = sample_surface();
         let s2 = sample_surface();
         let sum = s.clone() + s2.clone();
@@ -876,6 +876,7 @@ mod tests {
                 );
             }
         }
+        Ok(())
     }
 
     #[test]
@@ -935,6 +936,143 @@ mod tests {
         assert_eq!(back, p);
         // just use e to touch the API
         let _ = e.eval(EFloat64::from(0.25), EFloat64::from(0.75));
+        Ok(())
+    }
+
+    // Build a PH-like cubic surface from two complex hodographs for u and v.
+    // Surface is constructed as separable sum: S(u,v) = C_u(u) + C_v(v) - P00,
+    // so that S_u depends only on u and S_v only on v, each with PH-like speed.
+    fn ph_cubic_surface_from_w(
+        p00: (f64, f64),
+        wu0: (f64, f64),
+        wu1: (f64, f64),
+        wv0: (f64, f64),
+        wv1: (f64, f64),
+    ) -> AlgebraResult<BernsteinSurface<Point>> {
+        let base = Point::from_f64(p00.0, p00.1, 0.0);
+
+        let sq = |a: f64, b: f64| (a * a - b * b, 2.0 * a * b);
+        let mul = |a: f64, b: f64, c: f64, d: f64| (a * c - b * d, a * d + b * c);
+
+        // U-direction PH cubic curve control points
+        let (a0u, b0u) = wu0;
+        let (a1u, b1u) = wu1;
+        let d0u = sq(a0u, b0u);
+        let d1u = mul(a0u, b0u, a1u, b1u);
+        let d2u = sq(a1u, b1u);
+        let n = EFloat64::from(3.0);
+        let cu0 = base;
+        let cu1 = cu0 + (Point::from_f64(d0u.0, d0u.1, 0.0) / n)?;
+        let cu2 = cu1 + (Point::from_f64(d1u.0, d1u.1, 0.0) / n)?;
+        let cu3 = cu2 + (Point::from_f64(d2u.0, d2u.1, 0.0) / n)?;
+
+        // V-direction PH cubic curve control points
+        let (a0v, b0v) = wv0;
+        let (a1v, b1v) = wv1;
+        let d0v = sq(a0v, b0v);
+        let d1v = mul(a0v, b0v, a1v, b1v);
+        let d2v = sq(a1v, b1v);
+        let cv0 = base;
+        let cv1 = cv0 + (Point::from_f64(0.0, d0v.1, d0v.0) / n)?;
+        let cv2 = cv1 + (Point::from_f64(0.0, d1v.1, d1v.0) / n)?;
+        let cv3 = cv2 + (Point::from_f64(0.0, d2v.1, d2v.0) / n)?;
+
+        let cu = [cu0, cu1, cu2, cu3];
+        let cv = [cv0, cv1, cv2, cv3];
+
+        // Tensor product grid by separable sum
+        let mut coeffs = vec![vec![Point::zero(); 4]; 4];
+        for i in 0..4 {
+            for j in 0..4 {
+                coeffs[i][j] = cu[i] + cv[j] - base;
+            }
+        }
+
+        Ok(BernsteinSurface::new(coeffs))
+    }
+
+    #[test]
+    fn test_ph_like_u_derivative_sqrt_and_render() -> AlgebraResult<()> {
+        // Build PH-like cubic surface by separable construction in u and v
+        let s =
+            ph_cubic_surface_from_w((0.0, 0.0), (3.0, 2.0), (2.0, -1.0), (0.5, 1.0), (1.0, 0.5))?;
+        let su = s.derivative_u(); // degree (2,3)
+        let speed_u_sq = su.dot(&su); // degree (4,6)
+        let speed_u_poly = speed_u_sq.sqrt().ok();
+
+        // Render: surface wireframe and normalized u-derivatives using sqrt factor
+        let mut scene = PrimitiveScene::new();
+        scene.add_surface_like_wireframe(&s, Color10::Blue, 24)?;
+        for iu in 0..=24 {
+            for iv in 0..=24 {
+                let u = EFloat64::from(iu as f64 / 24.0);
+                let v = EFloat64::from(iv as f64 / 24.0);
+                let base = s.eval(u.clone(), v.clone());
+                let du_vec = su.eval(u.clone(), v.clone());
+                let denom = match &speed_u_poly {
+                    Some(p) => p.eval(u.clone(), v.clone()),
+                    None => du_vec.norm(),
+                };
+                let tangent = if denom != EFloat64::zero() {
+                    (du_vec / denom)?
+                } else {
+                    Point::zero()
+                };
+                let tip = base + tangent * EFloat64::from(0.25);
+                if tip != base {
+                    scene.add_line(Line::try_new(base, tip)?, Color10::Red);
+                }
+            }
+        }
+        scene.save_to_file("test_outputs/bernstein_surface_ph_u_like.html")?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_surface_normals_render_with_sqrt() -> AlgebraResult<()> {
+        let s = sample_surface();
+        let su = s.derivative_u();
+        let sv = s.derivative_v();
+        let mut scene = PrimitiveScene::new();
+        scene.add_surface_like(&s, Color10::Blue, 22)?;
+        // Normalize tangents via pointwise EFloat sqrt (not polynomial sqrt)
+        let su_sq = su.dot(&su);
+        let sv_sq = sv.dot(&sv);
+        for iu in 0..=22 {
+            for iv in 0..=22 {
+                let u = EFloat64::from(iu as f64 / 22.0);
+                let v = EFloat64::from(iv as f64 / 22.0);
+                let p = s.eval(u.clone(), v.clone());
+                let uvec = su.eval(u.clone(), v.clone());
+                let vvec = sv.eval(u.clone(), v.clone());
+                let ul = su_sq.eval(u.clone(), v.clone()).sqrt()?;
+                let vl = sv_sq.eval(u.clone(), v.clone()).sqrt()?;
+                let tu = if ul != EFloat64::zero() {
+                    (uvec / ul)?
+                } else {
+                    Point::zero()
+                };
+                let tv = if vl != EFloat64::zero() {
+                    (vvec / vl)?
+                } else {
+                    Point::zero()
+                };
+                let n = tu.cross(tv);
+                let tip_u = p + tu * EFloat64::from(0.2);
+                let tip_v = p + tv * EFloat64::from(0.2);
+                let tip_n = p + n * EFloat64::from(0.2);
+                if tip_u != p {
+                    scene.add_line(Line::try_new(p, tip_u)?, Color10::Red);
+                }
+                if tip_v != p {
+                    scene.add_line(Line::try_new(p, tip_v)?, Color10::Green);
+                }
+                if tip_n != p {
+                    scene.add_line(Line::try_new(p, tip_n)?, Color10::Purple);
+                }
+            }
+        }
+        scene.save_to_file("test_outputs/bernstein_surface_speed_normals.html")?;
         Ok(())
     }
 }

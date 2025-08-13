@@ -1,7 +1,14 @@
 use crate::{
-    algebra_error::AlgebraResult, curves::curve_like::CurveLike, face::Face, rasterize::{
-        convex_hull::rasterize_convex_hull, curve::rasterize_curve, surface::rasterize_face,
-    }, renderer::render_scene, surfaces::nurbs_surface::NurbsSurface
+    algebra_error::AlgebraResult,
+    curves::curve_like::CurveLike,
+    face::Face,
+    rasterize::{
+        convex_hull::rasterize_convex_hull,
+        curve::rasterize_curve,
+        surface::{rasterize_face, rasterize_surface_like},
+    },
+    renderer::render_scene,
+    surfaces::{nurbs_surface::NurbsSurface, surface_like::SurfaceLike},
 };
 
 use super::{
@@ -83,14 +90,52 @@ impl PrimitiveScene {
         Ok(())
     }
 
-    pub fn add_surface(&mut self, surface: &NurbsSurface, color: Color10, n: usize) -> AlgebraResult<()> {
-        self.add_face(
-            &Face::try_new_from_surface(surface.clone())?, color, n
-        )
+    pub fn add_surface(
+        &mut self,
+        surface: &NurbsSurface,
+        color: Color10,
+        n: usize,
+    ) -> AlgebraResult<()> {
+        self.add_face(&Face::try_new_from_surface(surface.clone())?, color, n)
     }
 
-    pub fn add_face_wireframe(&mut self, face: &Face, color: Color10, n: usize) -> AlgebraResult<()> {
+    pub fn add_surface_like(
+        &mut self,
+        surface: &dyn SurfaceLike,
+        color: Color10,
+        n: usize,
+    ) -> AlgebraResult<()> {
+        let triangles = rasterize_surface_like(surface, n)?;
+        self.triangles.extend(
+            triangles
+                .into_iter()
+                .map(|triangle| (triangle, color.clone())),
+        );
+        Ok(())
+    }
+
+    pub fn add_face_wireframe(
+        &mut self,
+        face: &Face,
+        color: Color10,
+        n: usize,
+    ) -> AlgebraResult<()> {
         let triangles = rasterize_face(face, n)?;
+        for t in triangles {
+            self.add_line(Line::try_new(t.a, t.b)?, color.clone());
+            self.add_line(Line::try_new(t.b, t.c)?, color.clone());
+            self.add_line(Line::try_new(t.c, t.a)?, color.clone());
+        }
+        Ok(())
+    }
+
+    pub fn add_surface_like_wireframe(
+        &mut self,
+        surface: &dyn SurfaceLike,
+        color: Color10,
+        n: usize,
+    ) -> AlgebraResult<()> {
+        let triangles = rasterize_surface_like(surface, n)?;
         for t in triangles {
             self.add_line(Line::try_new(t.a, t.b)?, color.clone());
             self.add_line(Line::try_new(t.b, t.c)?, color.clone());
