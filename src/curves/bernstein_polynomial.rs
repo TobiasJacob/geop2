@@ -1,6 +1,8 @@
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
+use crate::binomial_coefficient;
+use crate::zero::Zero;
 use crate::{
     algebra_error::AlgebraResult,
     curves::curve_like::CurveLike,
@@ -11,22 +13,6 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct BernsteinPolynomial<T> {
     pub coefficients: Vec<T>,
-}
-
-pub trait Zero {
-    fn zero() -> Self;
-}
-
-impl Zero for EFloat64 {
-    fn zero() -> Self {
-        EFloat64::zero()
-    }
-}
-
-impl Zero for Point {
-    fn zero() -> Self {
-        Point::zero()
-    }
 }
 
 impl<T> BernsteinPolynomial<T>
@@ -122,14 +108,23 @@ where
         }
         BernsteinPolynomial::new(deriv_coeffs)
     }
-}
 
-// Utility function for binomial coefficients
-fn binomial_coefficient(n: usize, k: usize) -> usize {
-    if k > n {
-        0
-    } else {
-        (1..=k).fold(1, |acc, i| acc * (n + 1 - i) / i)
+    pub fn equalize_degree(
+        self,
+        rhs: BernsteinPolynomial<T>,
+    ) -> (BernsteinPolynomial<T>, BernsteinPolynomial<T>) {
+        let n = self.degree();
+        let m = rhs.degree();
+        if n == m {
+            return (self, rhs);
+        }
+        if n < m {
+            let lhs = self.elevate_degree(m - n);
+            (lhs, rhs)
+        } else {
+            let rhs = rhs.elevate_degree(n - m);
+            (self, rhs)
+        }
     }
 }
 
@@ -141,26 +136,6 @@ where
         self.coefficients == other.coefficients
     }
 }
-fn equalize_degree<T>(
-    lhs: BernsteinPolynomial<T>,
-    rhs: BernsteinPolynomial<T>,
-) -> (BernsteinPolynomial<T>, BernsteinPolynomial<T>)
-where
-    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
-{
-    let n = lhs.degree();
-    let m = rhs.degree();
-    if n == m {
-        return (lhs, rhs);
-    }
-    if n < m {
-        let lhs = lhs.elevate_degree(m - n);
-        (lhs, rhs)
-    } else {
-        let rhs = rhs.elevate_degree(n - m);
-        (lhs, rhs)
-    }
-}
 
 impl<T> Add for BernsteinPolynomial<T>
 where
@@ -169,7 +144,7 @@ where
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        let (lhs, rhs) = equalize_degree(self, rhs);
+        let (lhs, rhs) = self.equalize_degree(rhs);
         let coefficients = lhs
             .coefficients
             .into_iter()
@@ -187,7 +162,7 @@ where
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        let (lhs, rhs) = equalize_degree(self, rhs);
+        let (lhs, rhs) = self.equalize_degree(rhs);
         let coefficients = lhs
             .coefficients
             .into_iter()
@@ -334,10 +309,7 @@ impl BernsteinPolynomial<Point> {
 
         BernsteinPolynomial::<EFloat64>::new(coefficients)
     }
-}
 
-// Cross product of two Bernstein polynomials with numeric coefficients
-impl BernsteinPolynomial<Point> {
     pub fn cross(&self, rhs: &Self) -> Self {
         let n = self.degree();
         let m = rhs.degree();
