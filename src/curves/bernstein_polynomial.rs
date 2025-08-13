@@ -39,9 +39,46 @@ impl<T> BernsteinPolynomial<T> {
     }
 }
 
+impl<T> Display for BernsteinPolynomial<T>
+where
+    T: Display + Zero + PartialEq,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        let n = self.degree();
+        for (i, coeff) in self.coefficients.iter().enumerate() {
+            if *coeff != T::zero() {
+                if !first {
+                    write!(f, " + ")?;
+                }
+                write!(f, "{} B_{{{},{}}}(t)", coeff, i, n)?;
+                first = false;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl<T> BernsteinPolynomial<T>
 where
-    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
+    T: Clone + Add<Output = T> + Mul<EFloat64, Output = T>,
+{
+    pub fn eval(&self, t: EFloat64) -> T {
+        let mut beta = self.coefficients.clone();
+        let n = beta.len();
+        for j in 1..n {
+            for k in 0..n - j {
+                beta[k] = beta[k].clone() * (EFloat64::one() - t.clone())
+                    + beta[k + 1].clone() * t.clone();
+            }
+        }
+        beta[0].clone()
+    }
+}
+
+impl<T> BernsteinPolynomial<T>
+where
+    T: Zero + Clone + Add<Output = T> + Mul<EFloat64, Output = T>,
 {
     //$$ c_i^{n+r} = \sum_{j = max(0, i - r)}^{min(n, i)} \frac{\binom{r}{i - j} \binom{n}{j}}{\binom{n + r}{i}} c_i^n $$
     pub fn elevate_degree(&self, r: usize) -> Self {
@@ -59,6 +96,24 @@ where
         }
 
         Self::new(new_coeffs)
+    }
+
+    pub fn equalize_degree(
+        self,
+        rhs: BernsteinPolynomial<T>,
+    ) -> (BernsteinPolynomial<T>, BernsteinPolynomial<T>) {
+        let n = self.degree();
+        let m = rhs.degree();
+        if n == m {
+            return (self, rhs);
+        }
+        if n < m {
+            let lhs = self.elevate_degree(m - n);
+            (lhs, rhs)
+        } else {
+            let rhs = rhs.elevate_degree(n - m);
+            (self, rhs)
+        }
     }
 
     // Use de Casteljau's algorithm to subdivide the polynomial
@@ -81,58 +136,12 @@ where
 
         (Self::new(left), Self::new(right))
     }
-
-    pub fn eval(&self, t: EFloat64) -> T {
-        let mut beta = self.coefficients.clone();
-        let n = beta.len();
-        for j in 1..n {
-            for k in 0..n - j {
-                beta[k] = beta[k].clone() * (EFloat64::one() - t.clone())
-                    + beta[k + 1].clone() * t.clone();
-            }
-        }
-        beta[0].clone()
-    }
-
-    pub fn derivative(&self) -> BernsteinPolynomial<T> {
-        let n = self.degree();
-        if n == 0 {
-            return BernsteinPolynomial::new(vec![T::zero()]);
-        }
-
-        let scale = EFloat64::from(n as f64);
-        let mut deriv_coeffs = Vec::with_capacity(n);
-        for i in 0..n {
-            let diff = self.coefficients[i + 1].clone() - self.coefficients[i].clone();
-            deriv_coeffs.push(diff * scale);
-        }
-        BernsteinPolynomial::new(deriv_coeffs)
-    }
-
-    pub fn equalize_degree(
-        self,
-        rhs: BernsteinPolynomial<T>,
-    ) -> (BernsteinPolynomial<T>, BernsteinPolynomial<T>) {
-        let n = self.degree();
-        let m = rhs.degree();
-        if n == m {
-            return (self, rhs);
-        }
-        if n < m {
-            let lhs = self.elevate_degree(m - n);
-            (lhs, rhs)
-        } else {
-            let rhs = rhs.elevate_degree(n - m);
-            (self, rhs)
-        }
-    }
 }
 
 impl<T> BernsteinPolynomial<T>
 where
     T: Zero
         + Clone
-        + Add<Output = T>
         + Sub<Output = T>
         + Mul<EFloat64, Output = T>
         + Div<EFloat64, Output = AlgebraResult<T>>
@@ -185,9 +194,28 @@ where
     }
 }
 
+impl<T> BernsteinPolynomial<T>
+where
+    T: Zero + Clone + Sub<Output = T> + Mul<EFloat64, Output = T>,
+{
+    pub fn derivative(&self) -> BernsteinPolynomial<T> {
+        let n = self.degree();
+        if n == 0 {
+            return BernsteinPolynomial::new(vec![T::zero()]);
+        }
+
+        let scale = EFloat64::from(n as f64);
+        let mut deriv_coeffs = Vec::with_capacity(n);
+        for i in 0..n {
+            let diff = self.coefficients[i + 1].clone() - self.coefficients[i].clone();
+            deriv_coeffs.push(diff * scale);
+        }
+        BernsteinPolynomial::new(deriv_coeffs)
+    }
+}
 impl<T> PartialEq for BernsteinPolynomial<T>
 where
-    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T> + PartialEq,
+    T: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         self.coefficients == other.coefficients
@@ -196,7 +224,7 @@ where
 
 impl<T> Add for BernsteinPolynomial<T>
 where
-    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
+    T: Zero + Clone + Add<Output = T> + Mul<EFloat64, Output = T>,
 {
     type Output = Self;
 
@@ -475,26 +503,6 @@ impl CurveLike for BernsteinPolynomial<Point> {
 
     fn control_polygon_hull(&self) -> AlgebraResult<ConvexHull> {
         ConvexHull::try_new(self.coefficients.clone())
-    }
-}
-
-impl<T> Display for BernsteinPolynomial<T>
-where
-    T: Display + Zero + PartialEq,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut first = true;
-        let n = self.degree();
-        for (i, coeff) in self.coefficients.iter().enumerate() {
-            if *coeff != T::zero() {
-                if !first {
-                    write!(f, " + ")?;
-                }
-                write!(f, "{} B_{{{},{}}}(t)", coeff, i, n)?;
-                first = false;
-            }
-        }
-        Ok(())
     }
 }
 
