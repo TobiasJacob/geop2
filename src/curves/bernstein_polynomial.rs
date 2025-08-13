@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 use crate::{
     algebra_error::AlgebraResult,
@@ -133,6 +133,14 @@ fn binomial_coefficient(n: usize, k: usize) -> usize {
     }
 }
 
+impl<T> PartialEq for BernsteinPolynomial<T>
+where
+    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T> + PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.coefficients == other.coefficients
+    }
+}
 fn equalize_degree<T>(
     lhs: BernsteinPolynomial<T>,
     rhs: BernsteinPolynomial<T>,
@@ -204,30 +212,101 @@ where
 }
 
 // Multiplication of two Bernstein polynomials with numeric coefficients
-impl Mul for BernsteinPolynomial<EFloat64> {
+impl<T> Mul<BernsteinPolynomial<EFloat64>> for BernsteinPolynomial<T>
+where
+    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
+{
     type Output = Self;
 
-    fn mul(self, rhs: Self) -> Self::Output {
+    fn mul(self, rhs: BernsteinPolynomial<EFloat64>) -> Self::Output {
         let n = self.degree();
         let m = rhs.degree();
-        let mut coefficients = vec![EFloat64::zero(); n + m + 1];
+        let mut coefficients = vec![T::zero(); n + m + 1];
 
         for k in 0..=n + m {
             let i_min = k.saturating_sub(m);
             let i_max = n.min(k);
-            let mut acc = EFloat64::zero();
+            let mut acc = T::zero();
             for i in i_min..=i_max {
                 let j = k - i;
                 let factor = (EFloat64::from(binomial_coefficient(n, i) as f64)
                     * EFloat64::from(binomial_coefficient(m, j) as f64)
                     / EFloat64::from(binomial_coefficient(n + m, k) as f64))
                 .unwrap();
-                acc = acc + self.coefficients[i] * rhs.coefficients[j] * factor;
+                acc = acc + self.coefficients[i].clone() * rhs.coefficients[j].clone() * factor;
             }
             coefficients[k] = acc;
         }
 
         Self::new(coefficients)
+    }
+}
+
+// Exact division by a numeric Bernstein polynomial. Errors if there is a remainder.
+impl<T> Div<BernsteinPolynomial<EFloat64>> for BernsteinPolynomial<T>
+where
+    T: Zero
+        + Clone
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Mul<EFloat64, Output = T>
+        + Div<EFloat64, Output = AlgebraResult<T>>
+        + PartialEq,
+{
+    type Output = AlgebraResult<Self>;
+
+    fn div(self, rhs: BernsteinPolynomial<EFloat64>) -> AlgebraResult<Self> {
+        let p_deg = self.degree();
+        let r_deg = rhs.degree();
+        if p_deg < r_deg {
+            return Err("Division degree mismatch: dividend degree < divisor degree".into());
+        }
+
+        let q_deg = p_deg - r_deg;
+        let mut q = vec![T::zero(); q_deg + 1];
+
+        // Require r_0 to be non-zero for stable forward substitution
+        let r0 = rhs.coefficients[0];
+        if r0 == 0.0 {
+            return Err("Division by polynomial with zero value at t=0 is not supported".into());
+        }
+
+        // Forward substitution to solve for q_k
+        for k in 0..=q_deg {
+            // Compute S = sum_{i=0..k-1} q_i * r_{k-i} * alpha(i,k-i)
+            let mut s = T::zero();
+            for i in 0..k {
+                let j = k - i;
+                if j > r_deg {
+                    continue;
+                }
+                let factor = (EFloat64::from(binomial_coefficient(q_deg, i) as f64)
+                    * EFloat64::from(binomial_coefficient(r_deg, j) as f64)
+                    / EFloat64::from(binomial_coefficient(q_deg + r_deg, k) as f64))
+                .unwrap();
+                s = s + q[i].clone() * (rhs.coefficients[j] * factor);
+            }
+
+            // denom = r_0 * alpha(k,0)
+            let alpha_k0 = (EFloat64::from(binomial_coefficient(q_deg, k) as f64)
+                / EFloat64::from(binomial_coefficient(q_deg + r_deg, k) as f64))
+            .unwrap();
+            let denom = r0 * alpha_k0;
+
+            // q_k = (p_k - S) / denom
+            let numer = self.coefficients[k].clone() - s;
+            q[k] = (numer / denom)?;
+        }
+
+        let quotient = BernsteinPolynomial::new(q);
+
+        // Verify exactness: quotient * rhs must equal self exactly
+        let recomposed: BernsteinPolynomial<T> = quotient.clone() * rhs;
+        if recomposed != self {
+            return Err("Division has a remainder; not exactly divisible".into());
+        }
+
+        Ok(quotient)
     }
 }
 
@@ -340,13 +419,8 @@ impl BernsteinPolynomial<EFloat64> {
 
         // Consistency check: q*q must reproduce self exactly
         let check = q.clone() * q.clone();
-        if check.coefficients.len() != self.coefficients.len() {
-            return Err("Degree mismatch after square root operation".into());
-        }
-        for (a, b) in check.coefficients.iter().zip(self.coefficients.iter()) {
-            if *a != *b {
-                return Err("Verification of square root failed".into());
-            }
+        if check != *self {
+            return Err("Verification of square root failed".into());
         }
 
         Ok(q)
@@ -653,6 +727,49 @@ mod tests {
             let dot_product = b.dot(cross_eval);
             assert!(dot_product == 0.0, "t = {}", t);
         }
+    }
+
+    #[test]
+    fn test_bernstein_polynomial_division() -> AlgebraResult<()> {
+        // Construct two polynomials p = q * r, then check p / q == r and p / r == q
+
+        // Let q(t) = 1 + 2t + t^2 (degree 2)
+        let q = BernsteinPolynomial::new(vec![
+            EFloat64::from(1.0),
+            EFloat64::from(2.0),
+            EFloat64::from(1.0),
+        ]);
+        // Let r(t) = 2 + 0t + 3t^2 (degree 2)
+        let r = BernsteinPolynomial::new(vec![
+            EFloat64::from(2.0),
+            EFloat64::from(0.0),
+            EFloat64::from(3.0),
+        ]);
+        // Compute p = q * r (degree 4)
+        let p = q.clone() * r.clone();
+
+        // Division: p / q == r
+        let r2 = (p.clone() / q.clone())?;
+        assert_eq!(r2, r);
+
+        // Division: p / r == q
+        let q2 = (p.clone() / r.clone())?;
+        assert_eq!(q2, q);
+
+        // Division by a polynomial of higher degree should error
+        let result = q.clone() / p.clone();
+        assert!(result.is_err());
+
+        // Division by a polynomial with zero at t=0 should error
+        let zero_at_0 = BernsteinPolynomial::new(vec![
+            EFloat64::from(0.0),
+            EFloat64::from(1.0),
+            EFloat64::from(2.0),
+        ]);
+        let result = p.clone() / zero_at_0;
+        assert!(result.is_err());
+
+        Ok(())
     }
 
     fn ph_cubic_from_w(
