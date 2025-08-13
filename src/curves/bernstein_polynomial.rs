@@ -128,6 +128,63 @@ where
     }
 }
 
+impl<T> BernsteinPolynomial<T>
+where
+    T: Zero
+        + Clone
+        + Add<Output = T>
+        + Sub<Output = T>
+        + Mul<EFloat64, Output = T>
+        + Div<EFloat64, Output = AlgebraResult<T>>
+        + PartialEq,
+{
+    // Try to reduce the degree by exactly one. If not possible, return an error.
+    fn reduce_degree_once(&self) -> AlgebraResult<Self> {
+        let n = self.degree();
+        if n == 0 {
+            return Err("Cannot reduce degree of a constant polynomial".into());
+        }
+
+        // q will have degree n-1
+        let mut q: Vec<T> = Vec::with_capacity(n);
+
+        // Boundary condition from elevation inverse: q_0 = a_0
+        q.push(self.coefficients[0].clone());
+
+        let n_ef = EFloat64::from(n as f64);
+        for i in 1..n {
+            // q_i = (n * a_i - i * q_{i-1}) / (n - i)
+            let numer = self.coefficients[i].clone() * n_ef.clone()
+                - q[i - 1].clone() * EFloat64::from(i as f64);
+            let denom = EFloat64::from((n - i) as f64);
+            q.push((numer / denom)?);
+        }
+
+        // Consistency check with the second boundary condition: q_{n-1} must equal a_n
+        if q[n - 1] != self.coefficients[n] {
+            return Err("Degree reduction not possible exactly for given coefficients".into());
+        }
+
+        Ok(Self::new(q))
+    }
+
+    // Reduce degree by r steps. If any step fails, return error.
+    pub fn reduce_degree(&self, r: usize) -> AlgebraResult<Self> {
+        if r == 0 {
+            return Ok(self.clone());
+        }
+        if r > self.degree() {
+            return Err("Reduction degree exceeds polynomial degree".into());
+        }
+
+        let mut current = self.clone();
+        for _ in 0..r {
+            current = current.reduce_degree_once()?;
+        }
+        Ok(current)
+    }
+}
+
 impl<T> PartialEq for BernsteinPolynomial<T>
 where
     T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T> + PartialEq,
@@ -740,6 +797,34 @@ mod tests {
         ]);
         let result = p.clone() / zero_at_0;
         assert!(result.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reduce_degree_success_and_error() -> AlgebraResult<()> {
+        // Construct q of degree 3 and elevate once to p of degree 4
+        let q = BernsteinPolynomial::new(vec![
+            EFloat64::from(1.0),
+            EFloat64::from(2.0),
+            EFloat64::from(3.0),
+            EFloat64::from(4.0),
+        ]);
+        let p = q.clone().elevate_degree(1);
+
+        // Reducing p by one should exactly recover q
+        let reduced = p.reduce_degree(1)?;
+        assert_eq!(reduced, q);
+
+        // A random polynomial usually is not exactly reducible
+        // Choose coefficients that violate the elevation consistency:
+        // For degree 2, reducible iff a2 == 2*a1 - a0. Here: 3 != 2*1 - 0
+        let not_square = BernsteinPolynomial::new(vec![
+            EFloat64::from(0.0),
+            EFloat64::from(1.0),
+            EFloat64::from(3.0),
+        ]);
+        assert!(not_square.reduce_degree(1).is_err());
 
         Ok(())
     }
