@@ -1,6 +1,10 @@
 use std::fmt::Display;
 
-use crate::primitives::{efloat::EFloat64, point::Point};
+use crate::{
+    algebra_error::AlgebraResult,
+    curves::curve_like::CurveLike,
+    primitives::{convex_hull::ConvexHull, efloat::EFloat64, point::Point},
+};
 
 // Represents a polynomial in the form of a_{0} B_{0,n}
 #[derive(Debug, Clone)]
@@ -78,6 +82,21 @@ impl BernsteinPolynomial {
         }
         beta[0].clone()
     }
+
+    pub fn derivative(&self) -> BernsteinPolynomial {
+        let n = self.degree();
+        if n == 0 {
+            return BernsteinPolynomial::new(vec![Point::zero()]);
+        }
+
+        let scale = EFloat64::from(n as f64);
+        let mut deriv_coeffs = Vec::with_capacity(n);
+        for i in 0..n {
+            let diff = self.coefficients[i + 1].clone() - self.coefficients[i].clone();
+            deriv_coeffs.push(diff * scale);
+        }
+        BernsteinPolynomial::new(deriv_coeffs)
+    }
 }
 
 // Utility function for binomial coefficients
@@ -86,6 +105,28 @@ fn binomial_coefficient(n: usize, k: usize) -> usize {
         0
     } else {
         (1..=k).fold(1, |acc, i| acc * (n + 1 - i) / i)
+    }
+}
+
+impl CurveLike for BernsteinPolynomial {
+    fn span(&self) -> (EFloat64, EFloat64) {
+        (EFloat64::zero(), EFloat64::one())
+    }
+
+    fn eval(&self, t: EFloat64) -> Point {
+        self.eval(t)
+    }
+
+    fn subdivide(&self, t: EFloat64) -> AlgebraResult<(Self, Self)> {
+        Ok(self.subdivide(t))
+    }
+
+    fn split(&self) -> AlgebraResult<(Self, Self)> {
+        Ok(self.subdivide(EFloat64::from(0.5)))
+    }
+
+    fn control_polygon_hull(&self) -> AlgebraResult<ConvexHull> {
+        ConvexHull::try_new(self.coefficients.clone())
     }
 }
 
@@ -108,18 +149,29 @@ impl Display for BernsteinPolynomial {
 
 #[cfg(test)]
 mod tests {
+    use crate::primitives::{color::Color10, line::Line, primitive_scene::PrimitiveScene};
+
     use super::*;
+    fn test_bernstein_polynomial() -> BernsteinPolynomial {
+        let coeffs = vec![
+            // Point::unit_z() * EFloat64::from(1.0),
+            // Point::unit_z() * EFloat64::from(2.0),
+            // Point::unit_z() * EFloat64::from(1.0),
+            // Point::unit_z() * EFloat64::from(5.0),
+            // Point::unit_z() * EFloat64::from(3.0),
+            Point::from_f64(0.0, 1.0, 0.0),
+            Point::from_f64(1.0, 2.0, 0.0),
+            Point::from_f64(2.0, 1.0, 4.0),
+            Point::from_f64(3.0, 5.0, 0.0),
+            Point::from_f64(4.0, 3.0, 0.0),
+        ];
+        let bernstein = BernsteinPolynomial::new(coeffs.clone());
+        bernstein
+    }
 
     #[test]
     fn test_bernstein_eval() {
-        let coeffs = vec![
-            Point::unit_z() * EFloat64::from(1.0),
-            Point::unit_z() * EFloat64::from(2.0),
-            Point::unit_z() * EFloat64::from(1.0),
-            Point::unit_z() * EFloat64::from(5.0),
-            Point::unit_z() * EFloat64::from(3.0),
-        ];
-        let bernstein = BernsteinPolynomial::new(coeffs.clone());
+        let bernstein = test_bernstein_polynomial();
 
         let t = EFloat64::from(0.5);
         let eval = bernstein.eval(t);
@@ -129,14 +181,7 @@ mod tests {
 
     #[test]
     fn test_bernstein_elevate_degree() {
-        let coeffs = vec![
-            Point::unit_z() * EFloat64::from(1.0),
-            Point::unit_z() * EFloat64::from(2.0),
-            Point::unit_z() * EFloat64::from(1.0),
-            Point::unit_z() * EFloat64::from(5.0),
-            Point::unit_z() * EFloat64::from(3.0),
-        ];
-        let bernstein = BernsteinPolynomial::new(coeffs.clone());
+        let bernstein = test_bernstein_polynomial();
 
         let r = 2;
         let elevated_bernstein = bernstein.elevate_degree(r);
@@ -171,14 +216,7 @@ mod tests {
 
     #[test]
     fn test_bernstein_subdivide() {
-        let coeffs = vec![
-            Point::unit_z() * EFloat64::from(1.0),
-            Point::unit_z() * EFloat64::from(2.0),
-            Point::unit_z() * EFloat64::from(1.0),
-            Point::unit_z() * EFloat64::from(5.0),
-            Point::unit_z() * EFloat64::from(3.0),
-        ];
-        let bernstein = BernsteinPolynomial::new(coeffs.clone());
+        let bernstein = test_bernstein_polynomial();
 
         let t = EFloat64::from(0.5);
         let (left, right) = bernstein.subdivide(t);
@@ -206,5 +244,37 @@ mod tests {
                 t
             );
         }
+    }
+
+    #[test]
+    fn test_bernstein_derivative() -> AlgebraResult<()> {
+        let bernstein = test_bernstein_polynomial();
+        let tangent = bernstein.derivative();
+        let second_derivative = tangent.derivative();
+        println!("Bernstein Polynomial: {}", &bernstein);
+        println!("Tangent Bernstein Polynomial: {}", &tangent);
+        println!(
+            "Second Derivative Bernstein Polynomial: {}",
+            &second_derivative
+        );
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_curve(&bernstein, Color10::Blue)?;
+
+        for i in 0..=10 {
+            let t = EFloat64::from(i as f64 / 10.0);
+            let eval = bernstein.eval(t);
+            let tangent_eval = tangent.eval(t) * EFloat64::from(0.1);
+            let line = Line::try_new(eval, tangent_eval + eval)?;
+            scene.add_line(line, Color10::Red);
+            let line = Line::try_new(
+                eval,
+                second_derivative.eval(t) * EFloat64::from(0.01) + eval,
+            )?;
+            scene.add_line(line, Color10::Green);
+        }
+
+        scene.save_to_file("test_outputs/bernstein_derivative.html")?;
+        Ok(())
     }
 }
