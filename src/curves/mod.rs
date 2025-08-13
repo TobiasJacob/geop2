@@ -8,3 +8,4 @@ pub mod bspline_curve;
 // pub mod monomial_polynom;
 pub mod curve_like;
 pub mod nurbs_curve;
+pub mod rational_bernstein_curve;

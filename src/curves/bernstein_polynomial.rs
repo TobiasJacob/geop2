@@ -133,6 +133,104 @@ fn binomial_coefficient(n: usize, k: usize) -> usize {
     }
 }
 
+fn equalize_degree<T>(
+    lhs: BernsteinPolynomial<T>,
+    rhs: BernsteinPolynomial<T>,
+) -> (BernsteinPolynomial<T>, BernsteinPolynomial<T>)
+where
+    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
+{
+    let n = lhs.degree();
+    let m = rhs.degree();
+    if n == m {
+        return (lhs, rhs);
+    }
+    if n < m {
+        let lhs = lhs.elevate_degree(m - n);
+        (lhs, rhs)
+    } else {
+        let rhs = rhs.elevate_degree(n - m);
+        (lhs, rhs)
+    }
+}
+
+impl<T> Add for BernsteinPolynomial<T>
+where
+    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
+{
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let (lhs, rhs) = equalize_degree(self, rhs);
+        let coefficients = lhs
+            .coefficients
+            .into_iter()
+            .zip(rhs.coefficients.into_iter())
+            .map(|(a, b)| a + b)
+            .collect();
+        return Self::new(coefficients);
+    }
+}
+
+impl<T> Sub for BernsteinPolynomial<T>
+where
+    T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
+{
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        let (lhs, rhs) = equalize_degree(self, rhs);
+        let coefficients = lhs
+            .coefficients
+            .into_iter()
+            .zip(rhs.coefficients.into_iter())
+            .map(|(a, b)| a - b)
+            .collect();
+        return Self::new(coefficients);
+    }
+}
+
+// Scalar multiplication of a Bernstein polynomial by EFloat64
+impl<T> Mul<EFloat64> for BernsteinPolynomial<T>
+where
+    T: Clone + Mul<EFloat64, Output = T>,
+{
+    type Output = Self;
+
+    fn mul(self, rhs: EFloat64) -> Self::Output {
+        let coefficients = self.coefficients.into_iter().map(|c| c * rhs).collect();
+        Self::new(coefficients)
+    }
+}
+
+// Multiplication of two Bernstein polynomials with numeric coefficients
+impl Mul for BernsteinPolynomial<EFloat64> {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        let n = self.degree();
+        let m = rhs.degree();
+        let mut coefficients = vec![EFloat64::zero(); n + m + 1];
+
+        for k in 0..=n + m {
+            let i_min = k.saturating_sub(m);
+            let i_max = n.min(k);
+            let mut acc = EFloat64::zero();
+            for i in i_min..=i_max {
+                let j = k - i;
+                let factor = (EFloat64::from(binomial_coefficient(n, i) as f64)
+                    * EFloat64::from(binomial_coefficient(m, j) as f64)
+                    / EFloat64::from(binomial_coefficient(n + m, k) as f64))
+                .unwrap();
+                acc = acc + self.coefficients[i] * rhs.coefficients[j] * factor;
+            }
+            coefficients[k] = acc;
+        }
+
+        Self::new(coefficients)
+    }
+}
+
 impl CurveLike for BernsteinPolynomial<Point> {
     fn span(&self) -> (EFloat64, EFloat64) {
         (EFloat64::zero(), EFloat64::one())
@@ -314,5 +412,57 @@ mod tests {
 
         scene.save_to_file("test_outputs/bernstein_derivative.html")?;
         Ok(())
+    }
+
+    fn test_bernstein_polynomial2() -> BernsteinPolynomial<Point> {
+        let coeffs = vec![
+            Point::from_f64(-1.0, 0.0, 2.0),
+            Point::from_f64(0.5, -2.0, 1.0),
+            Point::from_f64(1.5, 1.0, -1.0),
+            Point::from_f64(0.0, 3.0, 0.0),
+        ];
+        BernsteinPolynomial::new(coeffs)
+    }
+
+    #[test]
+    fn test_point_addition() {
+        let p = test_bernstein_polynomial();
+        let q = test_bernstein_polynomial2();
+        let sum = p.clone() + q.clone();
+
+        for i in 0..=10 {
+            let t = EFloat64::from(i as f64 / 10.0);
+            let lhs = sum.eval(t);
+            let rhs = p.eval(t) + q.eval(t);
+            assert_eq!(lhs, rhs, "t = {}", t);
+        }
+    }
+
+    #[test]
+    fn test_point_subtraction() {
+        let p = test_bernstein_polynomial();
+        let q = test_bernstein_polynomial2();
+        let diff = p.clone() - q.clone();
+
+        for i in 0..=10 {
+            let t = EFloat64::from(i as f64 / 10.0);
+            let lhs = diff.eval(t);
+            let rhs = p.eval(t) - q.eval(t);
+            assert_eq!(lhs, rhs, "t = {}", t);
+        }
+    }
+
+    #[test]
+    fn test_point_scalar_multiplication() {
+        let p = test_bernstein_polynomial();
+        let s = EFloat64::from(2.5);
+        let prod = p.clone() * s;
+
+        for i in 0..=10 {
+            let t = EFloat64::from(i as f64 / 10.0);
+            let lhs = prod.eval(t);
+            let rhs = p.eval(t) * s;
+            assert_eq!(lhs, rhs, "t = {}", t);
+        }
     }
 }
