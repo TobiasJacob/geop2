@@ -465,4 +465,19 @@ mod tests {
             assert_eq!(lhs, rhs, "t = {}", t);
         }
     }
+
+    #[test]
+    fn test_point_dot_product() {
+        let p = test_bernstein_polynomial();
+        let q = test_bernstein_polynomial2();
+
+        for i in 0..=10 {
+            let t = EFloat64::from(i as f64 / 10.0);
+            let a = p.eval(t);
+            let b = q.eval(t);
+            let lhs = a.dot(b);
+            let rhs = a.dot(b);
+            assert_eq!(lhs, rhs, "t = {}", t);
+        }
+    }
 }
