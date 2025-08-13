@@ -231,6 +231,102 @@ impl Mul for BernsteinPolynomial<EFloat64> {
     }
 }
 
+impl BernsteinPolynomial<EFloat64> {
+    pub fn sqrt(&self) -> AlgebraResult<BernsteinPolynomial<EFloat64>> {
+        let total_degree = self.degree();
+        if total_degree % 2 != 0 {
+            return Err(
+                "Square root only defined for even degree (perfect square) polynomials".into(),
+            );
+        }
+
+        let n = total_degree / 2;
+        let c = &self.coefficients;
+
+        // All-zero polynomial: return zero polynomial of degree n
+        if c.iter().all(|v| *v == 0.0) {
+            return Ok(BernsteinPolynomial::new(vec![EFloat64::zero(); n + 1]));
+        }
+
+        // Find first non-zero coefficient index k0
+        let k0 = match c.iter().position(|v| *v != 0.0) {
+            Some(idx) => idx,
+            None => 0,
+        };
+
+        if k0 % 2 != 0 {
+            return Err("Polynomial is not a perfect square in Bernstein basis (first non-zero coefficient index is odd)".into());
+        }
+
+        let r = k0 / 2;
+
+        // Helper to get binomial as EFloat64
+        let binom_n = |k: usize| EFloat64::from(binomial_coefficient(n, k) as f64);
+        let binom_2n = |k: usize| EFloat64::from(binomial_coefficient(2 * n, k) as f64);
+
+        let mut q = vec![EFloat64::zero(); n + 1];
+
+        // Solve for q_r from A_{2r} = C_{2r} * binom(2n, 2r) = binom(n,r)^2 * q_r^2
+        let a_2r = c[2 * r] * binom_2n(2 * r);
+        let denom_r = binom_n(r) * binom_n(r);
+        let q_r_sq = (a_2r / denom_r)?;
+        let q_r = q_r_sq.sqrt()?;
+        q[r] = q_r;
+
+        // Solve successively q_{r+1}..q_n from linear equations at k = r + t
+        for t in (r + 1)..=n {
+            let k = r + t;
+            let a_k = c[k] * binom_2n(k);
+
+            // Accumulate known contributions S_known
+            let mut s_known = EFloat64::zero();
+            for i in (r + 1)..=t - 1 {
+                let j = k - i;
+                // Only handle i <= j to avoid double counting
+                if i > j {
+                    continue;
+                }
+                let weight = binom_n(i) * binom_n(j);
+                let term = q[i] * q[j] * weight;
+                if i < j {
+                    s_known = s_known + term * EFloat64::two();
+                } else {
+                    // i == j
+                    s_known = s_known + term;
+                }
+            }
+
+            // Unknown contribution is 2 * binom(n,r) * binom(n,t) * q_r * q_t
+            let weight_rt = binom_n(r) * binom_n(t);
+            let numerator = a_k - s_known;
+            let denom = weight_rt * q_r * EFloat64::two();
+            let q_t = (numerator / denom)?;
+            q[t] = q_t;
+        }
+
+        let candidate = BernsteinPolynomial::new(q);
+
+        // Verify perfect square: candidate * candidate must equal self (coefficient-wise)
+        let product = candidate.clone() * candidate.clone();
+        if product.coefficients.len() != self.coefficients.len() {
+            return Err(
+                "Polynomial is not a perfect square (degree mismatch after factor extraction)"
+                    .into(),
+            );
+        }
+        let is_equal = product
+            .coefficients
+            .iter()
+            .zip(self.coefficients.iter())
+            .all(|(a, b)| *a == *b);
+        if !is_equal {
+            return Err("Polynomial is not a perfect square (verification failed)".into());
+        }
+
+        Ok(candidate)
+    }
+}
+
 impl CurveLike for BernsteinPolynomial<Point> {
     fn span(&self) -> (EFloat64, EFloat64) {
         (EFloat64::zero(), EFloat64::one())
@@ -382,38 +478,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_bernstein_derivative() -> AlgebraResult<()> {
-        let bernstein = test_bernstein_polynomial();
-        let tangent = bernstein.derivative();
-        let second_derivative = tangent.derivative();
-        println!("Bernstein Polynomial: {}", &bernstein);
-        println!("Tangent Bernstein Polynomial: {}", &tangent);
-        println!(
-            "Second Derivative Bernstein Polynomial: {}",
-            &second_derivative
-        );
-
-        let mut scene = PrimitiveScene::new();
-        scene.add_curve(&bernstein, Color10::Blue)?;
-
-        for i in 0..=10 {
-            let t = EFloat64::from(i as f64 / 10.0);
-            let eval = bernstein.eval(t);
-            let tangent_eval = tangent.eval(t) * EFloat64::from(0.1);
-            let line = Line::try_new(eval, tangent_eval + eval)?;
-            scene.add_line(line, Color10::Red);
-            let line = Line::try_new(
-                eval,
-                second_derivative.eval(t) * EFloat64::from(0.01) + eval,
-            )?;
-            scene.add_line(line, Color10::Green);
-        }
-
-        scene.save_to_file("test_outputs/bernstein_derivative.html")?;
-        Ok(())
-    }
-
     fn test_bernstein_polynomial2() -> BernsteinPolynomial<Point> {
         let coeffs = vec![
             Point::from_f64(-1.0, 0.0, 2.0),
@@ -479,5 +543,69 @@ mod tests {
             let rhs = a.dot(b);
             assert_eq!(lhs, rhs, "t = {}", t);
         }
+    }
+
+    #[test]
+    fn test_bernstein_sqrt_perfect_square() {
+        let q = BernsteinPolynomial::new(vec![
+            EFloat64::from(0.5),
+            EFloat64::from(1.0),
+            EFloat64::from(2.0),
+        ]);
+        let p = q.clone() * q.clone();
+        let s = p.sqrt().expect("sqrt should succeed for perfect square");
+        assert_eq!(s.degree(), q.degree());
+        let recomposed = s.clone() * s.clone();
+        assert!(
+            recomposed
+                .coefficients
+                .iter()
+                .zip(p.coefficients.iter())
+                .all(|(a, b)| *a == *b)
+        );
+    }
+
+    #[test]
+    fn test_bernstein_sqrt_error_non_square() {
+        // Odd degree polynomial cannot be a perfect square in this sense
+        let p = BernsteinPolynomial::new(vec![
+            EFloat64::from(1.0),
+            EFloat64::from(2.0),
+            EFloat64::from(3.0),
+            EFloat64::from(4.0),
+        ]);
+        assert!(p.sqrt().is_err());
+    }
+
+    #[test]
+    fn test_bernstein_derivative() -> AlgebraResult<()> {
+        let bernstein = test_bernstein_polynomial();
+        let tangent = bernstein.derivative();
+        let second_derivative = tangent.derivative();
+        println!("Bernstein Polynomial: {}", &bernstein);
+        println!("Tangent Bernstein Polynomial: {}", &tangent);
+        println!(
+            "Second Derivative Bernstein Polynomial: {}",
+            &second_derivative
+        );
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_curve(&bernstein, Color10::Blue)?;
+
+        for i in 0..=10 {
+            let t = EFloat64::from(i as f64 / 10.0);
+            let eval = bernstein.eval(t);
+            let tangent_eval = tangent.eval(t) * EFloat64::from(0.1);
+            let line = Line::try_new(eval, tangent_eval + eval)?;
+            scene.add_line(line, Color10::Red);
+            let line = Line::try_new(
+                eval,
+                second_derivative.eval(t) * EFloat64::from(0.01) + eval,
+            )?;
+            scene.add_line(line, Color10::Green);
+        }
+
+        scene.save_to_file("test_outputs/bernstein_derivative.html")?;
+        Ok(())
     }
 }
