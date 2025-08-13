@@ -736,4 +736,96 @@ mod tests {
 
         Ok(())
     }
+
+    fn ph_quintic_from_w(
+        p0: (f64, f64),
+        w0: (f64, f64),
+        w1: (f64, f64),
+        w2: (f64, f64),
+    ) -> AlgebraResult<BernsteinPolynomial<Point>> {
+        let (a0, b0) = w0;
+        let (a1, b1) = w1;
+        let (a2, b2) = w2;
+
+        // complex square and product in R^2
+        let sq = |a: f64, b: f64| (a * a - b * b, 2.0 * a * b);
+        let mul = |a: f64, b: f64, c: f64, d: f64| (a * c - b * d, a * d + b * c);
+
+        // Hodograph control points D_k for degree 4 derivative as w^2, with Bernstein weights
+        // k = 0: D0 = w0^2
+        let d0 = sq(a0, b0);
+        // k = 1: D1 = w0 * w1
+        let d1 = mul(a0, b0, a1, b1);
+        // k = 2: D2 = (1/3) w0 w2 + (2/3) w1^2
+        let w0w2 = mul(a0, b0, a2, b2);
+        let w1sq = sq(a1, b1);
+        let d2 = ((w0w2.0 + 2.0 * w1sq.0) / 3.0, (w0w2.1 + 2.0 * w1sq.1) / 3.0);
+        // k = 3: D3 = w1 * w2
+        let d3 = mul(a1, b1, a2, b2);
+        // k = 4: D4 = w2^2
+        let d4 = sq(a2, b2);
+
+        let n = EFloat64::from(5.0); // quintic => divide D_i by 5
+
+        let p0p = Point::from_f64(p0.0, p0.1, 0.0);
+        let p1p = p0p + (Point::from_f64(d0.0, d0.1, 0.0) / n)?;
+        let p2p = p1p + (Point::from_f64(d1.0, d1.1, 0.0) / n)?;
+        let p3p = p2p + (Point::from_f64(d2.0, d2.1, 0.0) / n)?;
+        let p4p = p3p + (Point::from_f64(d3.0, d3.1, 0.0) / n)?;
+        let p5p = p4p + (Point::from_f64(d4.0, d4.1, 0.0) / n)?;
+
+        Ok(BernsteinPolynomial::new(vec![p0p, p1p, p2p, p3p, p4p, p5p]))
+    }
+
+    #[test]
+    fn test_ph_quintic_derivative_speed_sqrt() -> AlgebraResult<()> {
+        // Construct a PH quintic via quadratic complex hodograph w(t)
+        let c = ph_quintic_from_w((0.0, 0.0), (1.0, 2.0), (2.0, -1.0), (1.0, 1.0))?;
+
+        let deriv = c.derivative(); // degree 4
+        let speed_sq = deriv.dot(&deriv); // degree 8
+        let speed = speed_sq.sqrt().expect("PH curve: sqrt must exist");
+        assert_eq!(speed.degree(), 4); // sqrt degree n-1 = 4
+
+        // sanity: (sqrt)^2 == speed_sq
+        let back = speed.clone() * speed.clone();
+        assert!(
+            back.coefficients
+                .iter()
+                .zip(speed_sq.coefficients.iter())
+                .all(|(a, b)| *a == *b)
+        );
+
+        // Render the curve and the normalized derivative using the speed polynomial
+        let n_samples = 32;
+        let mut scene = PrimitiveScene::new();
+        scene.add_curve(&c, Color10::Blue)?;
+        scene.add_curve(&deriv, Color10::Red)?;
+
+        // render the control polygon of deriv
+        for cp in deriv.coefficients.iter() {
+            scene.add_point(*cp, Color10::Green);
+        }
+
+        for i in 0..=n_samples {
+            let t = EFloat64::from(i as f64 / n_samples as f64);
+            let pt = c.eval(t);
+            let deriv_vec = deriv.eval(t);
+            let speed_val = speed.eval(t);
+
+            let tangent = if speed_val != EFloat64::zero() {
+                (deriv_vec / speed_val)?
+            } else {
+                Point::zero()
+            };
+
+            let tangent_tip = pt + tangent * EFloat64::from(0.5);
+            let line = Line::try_new(pt, tangent_tip)?;
+            scene.add_line(line, Color10::Red);
+        }
+
+        scene.save_to_file("test_outputs/ph_quintic_derivative_speed_sqrt.html")?;
+
+        Ok(())
+    }
 }
