@@ -1227,7 +1227,7 @@ mod tests {
         }
 
         // sqrt: build a perfect square from a (1,1,1) volume
-        let qq = BernsteinVolume::new(vec![
+        let _qq = BernsteinVolume::new(vec![
             vec![vec![EFloat64::from(0.5), EFloat64::from(1.0)]],
             vec![vec![EFloat64::from(1.0), EFloat64::from(2.0)]],
         ]); // degree (1,0,1)
