@@ -20,8 +20,8 @@ pub fn get_conormal_points(
     let n1 = s1.normal();
     let n2 = s2.normal();
 
-    let n1_hyper = n1.to_hypervolume_tu();
-    let n2_hyper = n2.to_hypervolume_vw();
+    let n1_hyper = n1.to_hypervolume_uv();
+    let n2_hyper = n2.to_hypervolume_wx();
 
     let cross = n1_hyper.cross(&n2_hyper);
 
@@ -31,20 +31,79 @@ pub fn get_conormal_points(
     Ok(vec![])
 }
 
-fn _refine(
+fn extend_if_not_present(result: &mut Vec<Point>, points: Vec<Point>) {
+    for point in points.iter() {
+        if !result.contains(point) {
+            result.push(*point);
+        } else {
+            let index = result.iter().position(|p| *p == *point).unwrap();
+            let existing_point = result.remove(index);
+            let union = existing_point.union(*point);
+            result.push(union);
+        }
+    }
+}
+
+fn refine(
     s1: &BernsteinSurface<Point>,
     s2: &BernsteinSurface<Point>,
     resultant: &BernsteinHyperVolume<EFloat64>,
+    split_u: bool,
 ) -> AlgebraResult<Vec<Point>> {
-    if !s1.get_convex_hull()?.intersects(&s2.get_convex_hull()?) {
-        return Ok(vec![]);
+    let hull1 = s1.get_convex_hull();
+    let hull2 = s2.get_convex_hull();
+
+    match (hull1, hull2) {
+        (Ok(hull1), Ok(hull2)) => {
+            if !hull1.intersects(&hull2) {
+                return Ok(vec![]);
+            }
+        }
+        _ => {
+            let union = s1
+                .eval(EFloat64::from(0.5), EFloat64::from(0.5))
+                .union(s2.eval(EFloat64::from(0.5), EFloat64::from(0.5)));
+            return Ok(vec![union]);
+        }
     }
 
     if !resultant.could_be_zero() {
         return Ok(vec![]);
     }
 
-    todo!("Subdivision step")
+    if split_u {
+        let (s1a, s1b) = s1.split_u()?;
+        let (s2a, s2b) = s2.split_u()?;
+
+        let (a, b) = resultant.subdivide_u(EFloat64::from(0.5));
+        let (raa, rab) = a.subdivide_w(EFloat64::from(0.5));
+        let (rba, rbb) = b.subdivide_w(EFloat64::from(0.5));
+
+        let mut result = vec![];
+
+        extend_if_not_present(&mut result, refine(&s1a, &s2a, &raa, !split_u)?);
+        extend_if_not_present(&mut result, refine(&s1a, &s2b, &rab, !split_u)?);
+        extend_if_not_present(&mut result, refine(&s1b, &s2a, &rba, !split_u)?);
+        extend_if_not_present(&mut result, refine(&s1b, &s2b, &rbb, !split_u)?);
+
+        return Ok(result);
+    } else {
+        let (s1a, s1b) = s1.split_v()?;
+        let (s2a, s2b) = s2.split_v()?;
+
+        let (a, b) = resultant.subdivide_v(EFloat64::from(0.5));
+        let (raa, rab) = a.subdivide_w(EFloat64::from(0.5));
+        let (rba, rbb) = b.subdivide_w(EFloat64::from(0.5));
+
+        let mut result = vec![];
+
+        extend_if_not_present(&mut result, refine(&s1a, &s2a, &raa, !split_u)?);
+        extend_if_not_present(&mut result, refine(&s1a, &s2b, &rab, !split_u)?);
+        extend_if_not_present(&mut result, refine(&s1b, &s2a, &rba, !split_u)?);
+        extend_if_not_present(&mut result, refine(&s1b, &s2b, &rbb, !split_u)?);
+
+        return Ok(result);
+    }
 }
 
 pub fn get_critical_points_perpendicular_tangent_x(
@@ -62,13 +121,15 @@ pub fn get_critical_points_perpendicular_tangent_x(
     let n1 = s1.normal();
     let n2 = s2.normal();
 
-    let n1_hyper = n1.to_hypervolume_tu();
-    let n2_hyper = n2.to_hypervolume_vw();
+    let n1_hyper = n1.to_hypervolume_uv();
+    let n2_hyper = n2.to_hypervolume_wx();
 
     let intersection_tangent = n1_hyper.cross(&n2_hyper);
-    let _product = intersection_tangent.dot(&BernsteinHyperVolume::unit_x());
+    let product = intersection_tangent.dot(&BernsteinHyperVolume::unit_x());
 
-    Ok(vec![])
+    let result = refine(s1, s2, &product, true)?;
+
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -119,13 +180,32 @@ mod tests {
             ],
         ])
     }
+    #[test]
+    fn test_get_critical_points_perpendicular_tangent_x() -> AlgebraResult<()> {
+        let s1 = mountain();
+        let s2 = upside_down_mountain();
+
+        let critical_points = get_critical_points_perpendicular_tangent_x(&s1, &s2)?;
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_surface_like(&s1, Color10::Red, 30)?;
+        scene.add_surface_like(&s2, Color10::Blue, 30)?;
+
+        for c in critical_points.iter() {
+            scene.add_point(*c, Color10::Green);
+        }
+
+        scene.save_to_file("test_outputs/critical_points_perpendicular_tangent_x.html")?;
+
+        Ok(())
+    }
 
     #[test]
     fn test_get_distance_hypervolume() -> AlgebraResult<()> {
         let s1 = mountain();
         let s2 = upside_down_mountain();
 
-        let distance = s1.to_hypervolume_tu() - s2.to_hypervolume_vw();
+        let distance = s1.to_hypervolume_uv() - s2.to_hypervolume_wx();
         let hull = distance.get_convex_hull().unwrap();
 
         let mut scene = PrimitiveScene::new();

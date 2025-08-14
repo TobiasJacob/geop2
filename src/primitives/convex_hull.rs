@@ -358,6 +358,26 @@ impl ConvexHull {
         }
         result
     }
+
+    pub fn max_size(&self) -> EFloat64 {
+        match self {
+            Self::Point(_) => EFloat64::zero(),
+            Self::Line(l) => (l.start() - l.end()).norm(),
+            Self::Triangle(t) => (t.a - t.b)
+                .norm()
+                .max((t.a - t.c).norm())
+                .max((t.b - t.c).norm()),
+            Self::Polyhedron(faces) => {
+                let max_x = faces.iter().map(|f| f.a.x).max().unwrap();
+                let max_y = faces.iter().map(|f| f.a.y).max().unwrap();
+                let max_z = faces.iter().map(|f| f.a.z).max().unwrap();
+                let min_x = faces.iter().map(|f| f.a.x).min().unwrap();
+                let min_y = faces.iter().map(|f| f.a.y).min().unwrap();
+                let min_z = faces.iter().map(|f| f.a.z).min().unwrap();
+                (max_x - min_x).max((max_y - min_y).max(max_z - min_z))
+            }
+        }
+    }
 }
 
 impl Display for ConvexHull {
