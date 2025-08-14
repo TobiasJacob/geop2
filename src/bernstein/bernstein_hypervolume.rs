@@ -2,13 +2,13 @@ use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
 use crate::algebra_error::AlgebraResult;
+use crate::bernstein::bernstein_surface::BernsteinSurface;
 use crate::binomial_coefficient;
 use crate::primitives::{efloat::EFloat64, point::Point};
 use crate::zero::Zero;
 
 use super::bernstein_curve::BernsteinCurve;
 use super::bernstein_volume::BernsteinVolume;
-use crate::surfaces::bernstein_surface::BernsteinSurface;
 
 /// 4D Tensor-product Bernstein hypervolume with coefficients laid out as a 4D grid.
 /// Dimensions are (degree_u+1) x (degree_v+1) x (degree_w+1) x (degree_x+1).

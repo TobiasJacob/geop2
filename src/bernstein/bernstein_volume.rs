@@ -2,12 +2,12 @@ use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
 use crate::algebra_error::AlgebraResult;
+use crate::bernstein::bernstein_surface::BernsteinSurface;
 use crate::binomial_coefficient;
 use crate::primitives::{efloat::EFloat64, point::Point};
 use crate::zero::Zero;
 
 use super::bernstein_curve::BernsteinCurve;
-use crate::surfaces::bernstein_surface::BernsteinSurface;
 
 /// Tensor-product Bernstein volume with coefficients laid out as a 3D grid.
 /// Dimensions are (degree_u+1) x (degree_v+1) x (degree_w+1).

@@ -1,8 +1,8 @@
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
+use crate::bernstein::bernstein_surface::BernsteinSurface;
 use crate::binomial_coefficient;
-use crate::surfaces::bernstein_surface::BernsteinSurface;
 use crate::zero::Zero;
 use crate::{
     algebra_error::AlgebraResult,

@@ -1,6 +1,6 @@
 use crate::{
+    bernstein::bernstein_surface::BernsteinSurface,
     primitives::{efloat::EFloat64, point::Point},
-    surfaces::bernstein_surface::BernsteinSurface,
 };
 
 pub struct RationalBernsteinSurface {
