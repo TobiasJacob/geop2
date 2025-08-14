@@ -64,6 +64,33 @@ impl BernsteinHyperVolume<Point> {
             .collect::<Vec<_>>();
         ConvexHull::try_new(flattened)
     }
+
+    pub fn unit_x() -> Self {
+        BernsteinHyperVolume::new(vec![vec![vec![vec![Point::unit_x(); 1]; 1]; 1]; 1])
+    }
+}
+impl BernsteinHyperVolume<EFloat64> {
+    pub fn could_be_zero(&self) -> bool {
+        let mut positive_coeff = false;
+        let mut negative_coeff = false;
+        for c1 in self.coefficients.iter() {
+            for c2 in c1.iter() {
+                for c3 in c2.iter() {
+                    for c4 in c3.iter() {
+                        if *c4 > EFloat64::zero() {
+                            positive_coeff = true;
+                        } else if *c4 < EFloat64::zero() {
+                            negative_coeff = true;
+                        }
+                        if positive_coeff && negative_coeff {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
 impl<T> Display for BernsteinHyperVolume<T>

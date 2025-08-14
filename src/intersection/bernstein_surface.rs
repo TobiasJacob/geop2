@@ -1,6 +1,8 @@
 use crate::{
-    algebra_error::AlgebraResult, bernstein::bernstein_surface::BernsteinSurface,
-    primitives::point::Point, surfaces::surface_like::SurfaceLike,
+    algebra_error::AlgebraResult,
+    bernstein::{bernstein_hypervolume::BernsteinHyperVolume, bernstein_surface::BernsteinSurface},
+    primitives::{efloat::EFloat64, point::Point},
+    surfaces::surface_like::SurfaceLike,
 };
 
 pub fn get_conormal_points(
@@ -15,8 +17,8 @@ pub fn get_conormal_points(
     }
 
     // Now get normals
-    let n1 = s1.derivative_u().cross(&s1.derivative_v());
-    let n2 = s2.derivative_u().cross(&s2.derivative_v());
+    let n1 = s1.normal();
+    let n2 = s2.normal();
 
     let n1_hyper = n1.to_hypervolume_tu();
     let n2_hyper = n2.to_hypervolume_vw();
@@ -24,7 +26,47 @@ pub fn get_conormal_points(
     let cross = n1_hyper.cross(&n2_hyper);
 
     // Check if the dot product
-    let hull = cross.get_convex_hull()?;
+    let _hull = cross.get_convex_hull()?;
+
+    Ok(vec![])
+}
+
+fn _refine(
+    s1: &BernsteinSurface<Point>,
+    s2: &BernsteinSurface<Point>,
+    resultant: &BernsteinHyperVolume<EFloat64>,
+) -> AlgebraResult<Vec<Point>> {
+    if !s1.get_convex_hull()?.intersects(&s2.get_convex_hull()?) {
+        return Ok(vec![]);
+    }
+
+    if !resultant.could_be_zero() {
+        return Ok(vec![]);
+    }
+
+    todo!("Subdivision step")
+}
+
+pub fn get_critical_points_perpendicular_tangent_x(
+    s1: &BernsteinSurface<Point>,
+    s2: &BernsteinSurface<Point>,
+) -> AlgebraResult<Vec<Point>> {
+    let hull_s1 = s1.get_convex_hull()?;
+    let hull_s2 = s2.get_convex_hull()?;
+
+    if !hull_s1.intersects(&hull_s2) {
+        return Ok(vec![]);
+    }
+
+    // Now get normals
+    let n1 = s1.normal();
+    let n2 = s2.normal();
+
+    let n1_hyper = n1.to_hypervolume_tu();
+    let n2_hyper = n2.to_hypervolume_vw();
+
+    let intersection_tangent = n1_hyper.cross(&n2_hyper);
+    let _product = intersection_tangent.dot(&BernsteinHyperVolume::unit_x());
 
     Ok(vec![])
 }

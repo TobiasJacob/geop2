@@ -408,6 +408,8 @@ where
         }
         BernsteinSurface::new(coeffs)
     }
+
+    // normal is only defined for point-valued surfaces; see specialized impl below
 }
 
 // Add, Sub for two Bernstein surfaces (equalize degrees by elevation)
@@ -537,6 +539,11 @@ where
 }
 
 impl BernsteinSurface<Point> {
+    pub fn normal(&self) -> Self {
+        let su = self.derivative_u();
+        let sv = self.derivative_v();
+        su.cross(&sv)
+    }
     pub fn dot(&self, rhs: &Self) -> BernsteinSurface<EFloat64> {
         let (du, dv) = (self.degree_u(), self.degree_v());
         let (eu, ev) = (rhs.degree_u(), rhs.degree_v());
