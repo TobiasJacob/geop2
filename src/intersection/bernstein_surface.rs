@@ -422,6 +422,7 @@ mod tests {
 
         let mut scene_recorder_x = PrimitiveSceneRecorder::new();
         let mut scene_recorder_y = PrimitiveSceneRecorder::new();
+        let mut scene_recorder_z = PrimitiveSceneRecorder::new();
 
         let mut critical_points =
             get_critical_points_perpendicular_tangent_x(&s1, &s2, &mut scene_recorder_x)?;
@@ -433,7 +434,8 @@ mod tests {
                 println!("No critical points perpendicular to tangent y");
             }
         }
-        // critical_points.extend(get_critical_points_perpendicular_tangent_z(&s1, &s2)?);
+        get_critical_points_perpendicular_tangent_z(&s1, &s2, &mut scene_recorder_z)
+            .expect_err("Should reach recursion limit");
 
         println!("Critical points: {:?}", critical_points.len());
         scene_recorder_x.save_to_folder("test_outputs/critical_points_perpendicular_tangent_x")?;
