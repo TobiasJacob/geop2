@@ -2,8 +2,8 @@ use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
 use crate::algebra_error::AlgebraResult;
+use crate::bernstein::bernstein_polynomial::BernsteinPolynomial;
 use crate::binomial_coefficient;
-use crate::curves::bernstein_polynomial::BernsteinPolynomial;
 use crate::primitives::{convex_hull::ConvexHull, efloat::EFloat64, point::Point};
 use crate::surfaces::surface_like::SurfaceLike;
 use crate::zero::Zero;

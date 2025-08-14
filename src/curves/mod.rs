@@ -1,4 +1,3 @@
-pub mod bernstein_polynomial;
 pub mod bspline_curve;
 // pub mod circle;
 // pub mod curve;

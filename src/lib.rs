@@ -1,4 +1,5 @@
 pub mod algebra_error;
+pub mod bernstein;
 pub mod contour;
 pub mod curves;
 pub mod face;

@@ -1,4 +1,3 @@
-pub mod bernstein_surface;
 pub mod curve_curve;
 pub mod curve_surface;
 pub mod surface_surface;
@@ -88,7 +87,7 @@ pub fn test_surface_1() -> AlgebraResult<NurbsSurface> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        curves::bernstein_polynomial::BernsteinPolynomial,
+        bernstein::bernstein_polynomial::BernsteinPolynomial,
         primitives::{color::Color10, primitive_scene::PrimitiveScene},
     };
 
