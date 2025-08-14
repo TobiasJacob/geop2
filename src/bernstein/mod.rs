@@ -1,2 +1,2 @@
-pub mod bernstein_polynomial;
+pub mod bernstein_curve;
 pub mod bernstein_surface;

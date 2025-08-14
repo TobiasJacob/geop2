@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
 use crate::algebra_error::AlgebraResult;
-use crate::bernstein::bernstein_polynomial::BernsteinPolynomial;
+use crate::bernstein::bernstein_curve::BernsteinCurve;
 use crate::binomial_coefficient;
 use crate::primitives::{convex_hull::ConvexHull, efloat::EFloat64, point::Point};
 use crate::surfaces::surface_like::SurfaceLike;
@@ -101,7 +101,7 @@ where
     /// Extract the isoparametric curve in u for a fixed v parameter.
     /// Returns a 1D Bernstein polynomial whose control points are obtained by
     /// de Casteljau reduction along the v-direction for each u-index.
-    pub fn iso_u_at(&self, v: EFloat64) -> BernsteinPolynomial<T> {
+    pub fn iso_u_at(&self, v: EFloat64) -> BernsteinCurve<T> {
         if self.coefficients.is_empty() || self.coefficients[0].is_empty() {
             panic!("Empty BernsteinSurface");
         }
@@ -120,13 +120,13 @@ where
             }
             control_points.push(beta[0].clone());
         }
-        BernsteinPolynomial::new(control_points)
+        BernsteinCurve::new(control_points)
     }
 
     /// Extract the isoparametric curve in v for a fixed u parameter.
     /// Returns a 1D Bernstein polynomial whose control points are obtained by
     /// de Casteljau reduction along the u-direction for each v-index.
-    pub fn iso_v_at(&self, u: EFloat64) -> BernsteinPolynomial<T> {
+    pub fn iso_v_at(&self, u: EFloat64) -> BernsteinCurve<T> {
         if self.coefficients.is_empty() || self.coefficients[0].is_empty() {
             panic!("Empty BernsteinSurface");
         }
@@ -145,7 +145,7 @@ where
             }
             control_points.push(beta[0].clone());
         }
-        BernsteinPolynomial::new(control_points)
+        BernsteinCurve::new(control_points)
     }
 }
 

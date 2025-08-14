@@ -12,11 +12,11 @@ use crate::{
 
 // Represents a polynomial in the form of a_{0} B_{0,n}
 #[derive(Debug, Clone)]
-pub struct BernsteinPolynomial<T> {
+pub struct BernsteinCurve<T> {
     pub coefficients: Vec<T>,
 }
 
-impl<T> BernsteinPolynomial<T>
+impl<T> BernsteinCurve<T>
 where
     T: Zero + Clone + Add<Output = T> + Mul<EFloat64, Output = T>,
 {
@@ -30,7 +30,7 @@ where
     }
 }
 
-impl<T> BernsteinPolynomial<T> {
+impl<T> BernsteinCurve<T> {
     pub fn new(coefficients: Vec<T>) -> Self {
         Self { coefficients }
     }
@@ -40,7 +40,7 @@ impl<T> BernsteinPolynomial<T> {
     }
 }
 
-impl<T> BernsteinPolynomial<T>
+impl<T> BernsteinCurve<T>
 where
     T: Clone,
 {
@@ -63,7 +63,7 @@ where
     }
 }
 
-impl<T> Display for BernsteinPolynomial<T>
+impl<T> Display for BernsteinCurve<T>
 where
     T: Display + Zero + PartialEq,
 {
@@ -83,7 +83,7 @@ where
     }
 }
 
-impl<T> BernsteinPolynomial<T>
+impl<T> BernsteinCurve<T>
 where
     T: Clone + Add<Output = T> + Mul<EFloat64, Output = T>,
 {
@@ -100,7 +100,7 @@ where
     }
 }
 
-impl<T> BernsteinPolynomial<T>
+impl<T> BernsteinCurve<T>
 where
     T: Zero + Clone + Add<Output = T> + Mul<EFloat64, Output = T>,
 {
@@ -122,10 +122,7 @@ where
         Self::new(new_coeffs)
     }
 
-    pub fn equalize_degree(
-        self,
-        rhs: BernsteinPolynomial<T>,
-    ) -> (BernsteinPolynomial<T>, BernsteinPolynomial<T>) {
+    pub fn equalize_degree(self, rhs: BernsteinCurve<T>) -> (BernsteinCurve<T>, BernsteinCurve<T>) {
         let n = self.degree();
         let m = rhs.degree();
         if n == m {
@@ -141,7 +138,7 @@ where
     }
 
     // Use de Casteljau's algorithm to subdivide the polynomial
-    pub fn subdivide(&self, t: EFloat64) -> (BernsteinPolynomial<T>, BernsteinPolynomial<T>) {
+    pub fn subdivide(&self, t: EFloat64) -> (BernsteinCurve<T>, BernsteinCurve<T>) {
         let mut beta = self.coefficients.clone();
         let n = beta.len();
         let mut left = vec![T::zero(); n];
@@ -162,7 +159,7 @@ where
     }
 }
 
-impl<T> BernsteinPolynomial<T>
+impl<T> BernsteinCurve<T>
 where
     T: Zero
         + Clone
@@ -218,14 +215,14 @@ where
     }
 }
 
-impl<T> BernsteinPolynomial<T>
+impl<T> BernsteinCurve<T>
 where
     T: Zero + Clone + Sub<Output = T> + Mul<EFloat64, Output = T>,
 {
-    pub fn derivative(&self) -> BernsteinPolynomial<T> {
+    pub fn derivative(&self) -> BernsteinCurve<T> {
         let n = self.degree();
         if n == 0 {
-            return BernsteinPolynomial::new(vec![T::zero()]);
+            return BernsteinCurve::new(vec![T::zero()]);
         }
 
         let scale = EFloat64::from(n as f64);
@@ -234,10 +231,10 @@ where
             let diff = self.coefficients[i + 1].clone() - self.coefficients[i].clone();
             deriv_coeffs.push(diff * scale);
         }
-        BernsteinPolynomial::new(deriv_coeffs)
+        BernsteinCurve::new(deriv_coeffs)
     }
 }
-impl<T> PartialEq for BernsteinPolynomial<T>
+impl<T> PartialEq for BernsteinCurve<T>
 where
     T: PartialEq,
 {
@@ -246,7 +243,7 @@ where
     }
 }
 
-impl<T> Add for BernsteinPolynomial<T>
+impl<T> Add for BernsteinCurve<T>
 where
     T: Zero + Clone + Add<Output = T> + Mul<EFloat64, Output = T>,
 {
@@ -264,7 +261,7 @@ where
     }
 }
 
-impl<T> Sub for BernsteinPolynomial<T>
+impl<T> Sub for BernsteinCurve<T>
 where
     T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
 {
@@ -283,7 +280,7 @@ where
 }
 
 // Scalar multiplication of a Bernstein polynomial by EFloat64
-impl<T> Mul<EFloat64> for BernsteinPolynomial<T>
+impl<T> Mul<EFloat64> for BernsteinCurve<T>
 where
     T: Clone + Mul<EFloat64, Output = T>,
 {
@@ -296,13 +293,13 @@ where
 }
 
 // Multiplication of two Bernstein polynomials with numeric coefficients
-impl<T> Mul<BernsteinPolynomial<EFloat64>> for BernsteinPolynomial<T>
+impl<T> Mul<BernsteinCurve<EFloat64>> for BernsteinCurve<T>
 where
     T: Zero + Clone + Add<Output = T> + Sub<Output = T> + Mul<EFloat64, Output = T>,
 {
     type Output = Self;
 
-    fn mul(self, rhs: BernsteinPolynomial<EFloat64>) -> Self::Output {
+    fn mul(self, rhs: BernsteinCurve<EFloat64>) -> Self::Output {
         let n = self.degree();
         let m = rhs.degree();
         let mut coefficients = vec![T::zero(); n + m + 1];
@@ -327,7 +324,7 @@ where
 }
 
 // Exact division by a numeric Bernstein polynomial. Errors if there is a remainder.
-impl<T> Div<BernsteinPolynomial<EFloat64>> for BernsteinPolynomial<T>
+impl<T> Div<BernsteinCurve<EFloat64>> for BernsteinCurve<T>
 where
     T: Zero
         + Clone
@@ -339,7 +336,7 @@ where
 {
     type Output = AlgebraResult<Self>;
 
-    fn div(self, rhs: BernsteinPolynomial<EFloat64>) -> AlgebraResult<Self> {
+    fn div(self, rhs: BernsteinCurve<EFloat64>) -> AlgebraResult<Self> {
         let p_deg = self.degree();
         let r_deg = rhs.degree();
         if p_deg < r_deg {
@@ -382,10 +379,10 @@ where
             q[k] = (numer / denom)?;
         }
 
-        let quotient = BernsteinPolynomial::new(q);
+        let quotient = BernsteinCurve::new(q);
 
         // Verify exactness: quotient * rhs must equal self exactly
-        let recomposed: BernsteinPolynomial<T> = quotient.clone() * rhs;
+        let recomposed: BernsteinCurve<T> = quotient.clone() * rhs;
         if recomposed != self {
             return Err("Division has a remainder; not exactly divisible".into());
         }
@@ -395,8 +392,8 @@ where
 }
 
 // Dot product of two Bernstein polynomials with numeric coefficients
-impl BernsteinPolynomial<Point> {
-    pub fn dot(&self, rhs: &Self) -> BernsteinPolynomial<EFloat64> {
+impl BernsteinCurve<Point> {
+    pub fn dot(&self, rhs: &Self) -> BernsteinCurve<EFloat64> {
         let n = self.degree();
         let m = rhs.degree();
         let mut coefficients = vec![EFloat64::zero(); n + m + 1];
@@ -416,7 +413,7 @@ impl BernsteinPolynomial<Point> {
             coefficients[k] = acc;
         }
 
-        BernsteinPolynomial::<EFloat64>::new(coefficients)
+        BernsteinCurve::<EFloat64>::new(coefficients)
     }
 
     pub fn cross(&self, rhs: &Self) -> Self {
@@ -443,8 +440,8 @@ impl BernsteinPolynomial<Point> {
     }
 }
 
-impl BernsteinPolynomial<EFloat64> {
-    pub fn sqrt(&self) -> AlgebraResult<BernsteinPolynomial<EFloat64>> {
+impl BernsteinCurve<EFloat64> {
+    pub fn sqrt(&self) -> AlgebraResult<BernsteinCurve<EFloat64>> {
         let n = self.degree();
         if n % 2 == 1 {
             return Err(
@@ -496,7 +493,7 @@ impl BernsteinPolynomial<EFloat64> {
             d[k] = (numer / denom)?;
         }
 
-        let q = BernsteinPolynomial::new(d);
+        let q = BernsteinCurve::new(d);
 
         // Consistency check: q*q must reproduce self exactly
         let check = q.clone() * q.clone();
@@ -508,7 +505,7 @@ impl BernsteinPolynomial<EFloat64> {
     }
 }
 
-impl CurveLike for BernsteinPolynomial<Point> {
+impl CurveLike for BernsteinCurve<Point> {
     fn span(&self) -> (EFloat64, EFloat64) {
         (EFloat64::zero(), EFloat64::one())
     }
@@ -535,7 +532,7 @@ mod tests {
     use crate::primitives::{color::Color10, line::Line, primitive_scene::PrimitiveScene};
 
     use super::*;
-    fn test_bernstein_polynomial() -> BernsteinPolynomial<Point> {
+    fn test_bernstein_polynomial() -> BernsteinCurve<Point> {
         let coeffs = vec![
             // Point::unit_z() * EFloat64::from(1.0),
             // Point::unit_z() * EFloat64::from(2.0),
@@ -548,14 +545,14 @@ mod tests {
             Point::from_f64(3.0, 5.0, 0.0),
             Point::from_f64(4.0, 3.0, 0.0),
         ];
-        let bernstein = BernsteinPolynomial::new(coeffs.clone());
+        let bernstein = BernsteinCurve::new(coeffs.clone());
         bernstein
     }
 
     #[test]
     fn test_bernstein_with_efloat() {
         let coeffs = vec![EFloat64::from(1.0), EFloat64::from(2.0)];
-        let bernstein = BernsteinPolynomial::new(coeffs.clone());
+        let bernstein = BernsteinCurve::new(coeffs.clone());
         bernstein.eval(EFloat64::from(0.5));
         bernstein.derivative();
         bernstein.elevate_degree(1);
@@ -594,7 +591,7 @@ mod tests {
             Point::unit_z() * EFloat64::from(1.0),
             Point::unit_z() * EFloat64::from(2.0),
         ];
-        let bernstein = BernsteinPolynomial::new(coeffs.clone());
+        let bernstein = BernsteinCurve::new(coeffs.clone());
 
         println!("Bernstein Polynomial: {}", &bernstein);
         println!(
@@ -639,14 +636,14 @@ mod tests {
         }
     }
 
-    fn test_bernstein_polynomial2() -> BernsteinPolynomial<Point> {
+    fn test_bernstein_polynomial2() -> BernsteinCurve<Point> {
         let coeffs = vec![
             Point::from_f64(-1.0, 0.0, 2.0),
             Point::from_f64(0.5, -2.0, 1.0),
             Point::from_f64(1.5, 1.0, -1.0),
             Point::from_f64(0.0, 3.0, 0.0),
         ];
-        BernsteinPolynomial::new(coeffs)
+        BernsteinCurve::new(coeffs)
     }
 
     #[test]
@@ -708,7 +705,7 @@ mod tests {
 
     #[test]
     fn test_bernstein_sqrt_perfect_square() {
-        let q = BernsteinPolynomial::new(vec![
+        let q = BernsteinCurve::new(vec![
             EFloat64::from(0.5),
             EFloat64::from(1.0),
             EFloat64::from(2.0),
@@ -729,7 +726,7 @@ mod tests {
     #[test]
     fn test_bernstein_sqrt_error_non_square() {
         // Odd degree polynomial cannot be a perfect square in this sense
-        let p = BernsteinPolynomial::new(vec![
+        let p = BernsteinCurve::new(vec![
             EFloat64::from(1.0),
             EFloat64::from(2.0),
             EFloat64::from(3.0),
@@ -795,13 +792,13 @@ mod tests {
         // Construct two polynomials p = q * r, then check p / q == r and p / r == q
 
         // Let q(t) = 1 + 2t + t^2 (degree 2)
-        let q = BernsteinPolynomial::new(vec![
+        let q = BernsteinCurve::new(vec![
             EFloat64::from(1.0),
             EFloat64::from(2.0),
             EFloat64::from(1.0),
         ]);
         // Let r(t) = 2 + 0t + 3t^2 (degree 2)
-        let r = BernsteinPolynomial::new(vec![
+        let r = BernsteinCurve::new(vec![
             EFloat64::from(2.0),
             EFloat64::from(0.0),
             EFloat64::from(3.0),
@@ -822,7 +819,7 @@ mod tests {
         assert!(result.is_err());
 
         // Division by a polynomial with zero at t=0 should error
-        let zero_at_0 = BernsteinPolynomial::new(vec![
+        let zero_at_0 = BernsteinCurve::new(vec![
             EFloat64::from(0.0),
             EFloat64::from(1.0),
             EFloat64::from(2.0),
@@ -836,7 +833,7 @@ mod tests {
     #[test]
     fn test_reduce_degree_success_and_error() -> AlgebraResult<()> {
         // Construct q of degree 3 and elevate once to p of degree 4
-        let q = BernsteinPolynomial::new(vec![
+        let q = BernsteinCurve::new(vec![
             EFloat64::from(1.0),
             EFloat64::from(2.0),
             EFloat64::from(3.0),
@@ -851,7 +848,7 @@ mod tests {
         // A random polynomial usually is not exactly reducible
         // Choose coefficients that violate the elevation consistency:
         // For degree 2, reducible iff a2 == 2*a1 - a0. Here: 3 != 2*1 - 0
-        let not_square = BernsteinPolynomial::new(vec![
+        let not_square = BernsteinCurve::new(vec![
             EFloat64::from(0.0),
             EFloat64::from(1.0),
             EFloat64::from(3.0),
@@ -865,7 +862,7 @@ mod tests {
         p0: (f64, f64),
         w0: (f64, f64),
         w1: (f64, f64),
-    ) -> AlgebraResult<BernsteinPolynomial<Point>> {
+    ) -> AlgebraResult<BernsteinCurve<Point>> {
         let (a0, b0) = w0;
         let (a1, b1) = w1;
 
@@ -883,7 +880,7 @@ mod tests {
         let p2p = p1p + (Point::from_f64(d1.0, d1.1, 0.0) / n)?;
         let p3p = p2p + (Point::from_f64(d2.0, d2.1, 0.0) / n)?;
 
-        Ok(BernsteinPolynomial::new(vec![p0p, p1p, p2p, p3p]))
+        Ok(BernsteinCurve::new(vec![p0p, p1p, p2p, p3p]))
     }
 
     #[test]
@@ -948,7 +945,7 @@ mod tests {
         w0: (f64, f64),
         w1: (f64, f64),
         w2: (f64, f64),
-    ) -> AlgebraResult<BernsteinPolynomial<Point>> {
+    ) -> AlgebraResult<BernsteinCurve<Point>> {
         let (a0, b0) = w0;
         let (a1, b1) = w1;
         let (a2, b2) = w2;
@@ -980,7 +977,7 @@ mod tests {
         let p4p = p3p + (Point::from_f64(d3.0, d3.1, 0.0) / n)?;
         let p5p = p4p + (Point::from_f64(d4.0, d4.1, 0.0) / n)?;
 
-        Ok(BernsteinPolynomial::new(vec![p0p, p1p, p2p, p3p, p4p, p5p]))
+        Ok(BernsteinCurve::new(vec![p0p, p1p, p2p, p3p, p4p, p5p]))
     }
 
     #[test]

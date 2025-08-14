@@ -87,7 +87,7 @@ pub fn test_surface_1() -> AlgebraResult<NurbsSurface> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        bernstein::bernstein_polynomial::BernsteinPolynomial,
+        bernstein::bernstein_curve::BernsteinCurve,
         primitives::{color::Color10, primitive_scene::PrimitiveScene},
     };
 
@@ -95,13 +95,13 @@ mod tests {
 
     #[test]
     fn test_curve_curve_distance_surface() -> AlgebraResult<()> {
-        let curve1 = BernsteinPolynomial::<Point>::new(vec![
+        let curve1 = BernsteinCurve::<Point>::new(vec![
             Point::from_f64(0.0, 0.0, 4.0),
             Point::from_f64(1.0, 1.0, 0.0),
             Point::from_f64(2.0, 5.0, 3.0),
             Point::from_f64(3.0, 1.0, 0.0),
         ]);
-        let curve2 = BernsteinPolynomial::<Point>::new(vec![
+        let curve2 = BernsteinCurve::<Point>::new(vec![
             Point::from_f64(0.0, 1.0, 0.0),
             Point::from_f64(1.0, 1.0, 4.0),
             Point::from_f64(1.0, 1.0, 2.0),
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn test_curve_curve_distance_surface_with_one_self_intersecting_curve() -> AlgebraResult<()> {
-        let curve1 = BernsteinPolynomial::<Point>::new(vec![
+        let curve1 = BernsteinCurve::<Point>::new(vec![
             Point::from_f64(0.0, 0.0, 0.0),
             Point::from_f64(1.0, 1.0, 0.0),
             Point::from_f64(2.0, 0.0, 0.0),
