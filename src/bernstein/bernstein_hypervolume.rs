@@ -4,6 +4,7 @@ use std::ops::{Add, Div, Mul, Sub};
 use crate::algebra_error::AlgebraResult;
 use crate::bernstein::bernstein_surface::BernsteinSurface;
 use crate::binomial_coefficient;
+use crate::primitives::convex_hull::ConvexHull;
 use crate::primitives::{efloat::EFloat64, point::Point};
 use crate::zero::Zero;
 
@@ -48,6 +49,20 @@ impl<T> BernsteinHyperVolume<T> {
         } else {
             self.coefficients[0][0][0].len().saturating_sub(1)
         }
+    }
+}
+
+impl BernsteinHyperVolume<Point> {
+    pub fn get_convex_hull(&self) -> AlgebraResult<ConvexHull> {
+        let flattened = self
+            .coefficients
+            .iter()
+            .flatten()
+            .flatten()
+            .flatten()
+            .map(|x| *x)
+            .collect::<Vec<_>>();
+        ConvexHull::try_new(flattened)
     }
 }
 

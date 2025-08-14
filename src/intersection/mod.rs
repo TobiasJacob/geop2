@@ -1,3 +1,4 @@
+pub mod bernstein_surface;
 pub mod curve_curve;
 pub mod curve_surface;
 pub mod surface_surface;

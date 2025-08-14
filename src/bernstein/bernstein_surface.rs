@@ -3,6 +3,7 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use crate::algebra_error::AlgebraResult;
 use crate::bernstein::bernstein_curve::BernsteinCurve;
+use crate::bernstein::bernstein_hypervolume::BernsteinHyperVolume;
 use crate::binomial_coefficient;
 use crate::primitives::{convex_hull::ConvexHull, efloat::EFloat64, point::Point};
 use crate::surfaces::surface_like::SurfaceLike;
@@ -30,6 +31,35 @@ impl<T> BernsteinSurface<T> {
         } else {
             self.coefficients[0].len().saturating_sub(1)
         }
+    }
+}
+
+impl<T> BernsteinSurface<T>
+where
+    T: Zero + Clone,
+{
+    pub fn to_hypervolume_tu(&self) -> BernsteinHyperVolume<T> {
+        let dt = self.degree_u();
+        let du = self.degree_v();
+        let mut coefficients = vec![vec![vec![vec![T::zero(); 1]; 1]; du + 1]; dt + 1];
+        for t in 0..=dt {
+            for u in 0..=du {
+                coefficients[t][u][0][0] = self.coefficients[t][u].clone();
+            }
+        }
+        BernsteinHyperVolume::new(coefficients)
+    }
+
+    pub fn to_hypervolume_vw(&self) -> BernsteinHyperVolume<T> {
+        let dv = self.degree_u();
+        let dw = self.degree_v();
+        let mut coefficients = vec![vec![vec![vec![T::zero(); dw + 1]; dv + 1]; 1]; 1];
+        for v in 0..=dv {
+            for w in 0..=dw {
+                coefficients[0][0][v][w] = self.coefficients[v][w].clone();
+            }
+        }
+        BernsteinHyperVolume::new(coefficients)
     }
 }
 

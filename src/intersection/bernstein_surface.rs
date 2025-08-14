@@ -1,7 +1,6 @@
 use crate::{
-    algebra_error::AlgebraResult,
-    primitives::point::Point,
-    surfaces::{bernstein_surface::BernsteinSurface, surface_like::SurfaceLike},
+    algebra_error::AlgebraResult, bernstein::bernstein_surface::BernsteinSurface,
+    primitives::point::Point, surfaces::surface_like::SurfaceLike,
 };
 
 pub fn get_conormal_points(
@@ -19,10 +18,88 @@ pub fn get_conormal_points(
     let n1 = s1.derivative_u().cross(&s1.derivative_v());
     let n2 = s2.derivative_u().cross(&s2.derivative_v());
 
-    let _hull_n1 = n1.get_convex_hull()?;
-    let _hull_n2 = n2.get_convex_hull()?;
+    let n1_hyper = n1.to_hypervolume_tu();
+    let n2_hyper = n2.to_hypervolume_vw();
+
+    let cross = n1_hyper.cross(&n2_hyper);
 
     // Check if the dot product
+    let hull = cross.get_convex_hull()?;
 
     Ok(vec![])
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::primitives::{color::Color10, primitive_scene::PrimitiveScene};
+
+    use super::*;
+
+    fn mountain() -> BernsteinSurface<Point> {
+        BernsteinSurface::<Point>::new(vec![
+            vec![
+                Point::from_f64(0.0, 0.0, 0.0),
+                Point::from_f64(1.0, 0.0, 0.0),
+                Point::from_f64(2.0, 0.0, 0.0),
+            ],
+            vec![
+                Point::from_f64(0.0, 1.0, 0.0),
+                Point::from_f64(1.0, 1.0, 5.0),
+                Point::from_f64(2.0, 1.0, 0.0),
+            ],
+            vec![
+                Point::from_f64(0.0, 2.0, 0.0),
+                Point::from_f64(1.0, 2.0, 0.0),
+                Point::from_f64(2.0, 2.0, 0.0),
+            ],
+        ])
+    }
+
+    fn upside_down_mountain() -> BernsteinSurface<Point> {
+        BernsteinSurface::<Point>::new(vec![
+            vec![
+                Point::from_f64(0.0, 0.0, 2.0),
+                Point::from_f64(1.0, 0.0, 2.0),
+                Point::from_f64(2.0, 0.0, 2.0),
+            ],
+            vec![
+                Point::from_f64(0.0, 1.0, 2.0),
+                Point::from_f64(1.0, 1.0, -5.0),
+                Point::from_f64(2.0, 1.0, 2.0),
+            ],
+            vec![
+                Point::from_f64(0.0, 2.0, 2.0),
+                Point::from_f64(1.0, 2.0, 2.0),
+                Point::from_f64(2.0, 2.0, 2.0),
+            ],
+        ])
+    }
+
+    #[test]
+    fn test_get_distance_hypervolume() -> AlgebraResult<()> {
+        let s1 = mountain();
+        let s2 = upside_down_mountain();
+
+        let distance = s1.to_hypervolume_tu() - s2.to_hypervolume_vw();
+        let hull = distance.get_convex_hull().unwrap();
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_surface_like(&s1, Color10::Red, 30)?;
+        scene.add_surface_like(&s2, Color10::Blue, 30)?;
+        scene.add_convex_hull(hull, Color10::Green);
+
+        for c1 in distance.coefficients.iter() {
+            for c2 in c1.iter() {
+                for c3 in c2.iter() {
+                    for c4 in c3.iter() {
+                        scene.add_point(*c4, Color10::Green);
+                    }
+                }
+            }
+        }
+
+        scene.save_to_file("test_outputs/distance_hypervolume.html")?;
+
+        Ok(())
+    }
 }
