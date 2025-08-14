@@ -73,7 +73,10 @@ pub fn get_critical_points_perpendicular_tangent_x(
 
 #[cfg(test)]
 mod tests {
-    use crate::primitives::{color::Color10, primitive_scene::PrimitiveScene};
+    use crate::{
+        bernstein::bernstein_curve::BernsteinCurve,
+        primitives::{color::Color10, primitive_scene::PrimitiveScene},
+    };
 
     use super::*;
 
@@ -141,6 +144,43 @@ mod tests {
         }
 
         scene.save_to_file("test_outputs/distance_hypervolume.html")?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn subdivision_of_curve_example() -> AlgebraResult<()> {
+        let s1 = BernsteinCurve::<Point>::new(vec![
+            Point::from_f64(0.0, 0.0, 0.0),
+            Point::from_f64(1.0, 3.0, 0.0),
+            Point::from_f64(2.0, 1.0, 0.0),
+        ]);
+
+        let (mut a, mut b) = s1.subdivide(EFloat64::from(0.5));
+        // shift a by 1 in z
+        for c in a.coefficients.iter_mut() {
+            c.z = c.z + EFloat64::one();
+        }
+        for c in b.coefficients.iter_mut() {
+            c.z = c.z + EFloat64::one();
+        }
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_curve(&s1, Color10::Red)?;
+        scene.add_curve(&a, Color10::Green)?;
+        scene.add_curve(&b, Color10::Blue)?;
+
+        for c in a.coefficients.iter() {
+            scene.add_point(*c, Color10::Green);
+        }
+        for c in b.coefficients.iter() {
+            scene.add_point(*c, Color10::Blue);
+        }
+        for c in s1.coefficients.iter() {
+            scene.add_point(*c, Color10::Red);
+        }
+
+        scene.save_to_file("test_outputs/subdivision_of_curve_example.html")?;
 
         Ok(())
     }
