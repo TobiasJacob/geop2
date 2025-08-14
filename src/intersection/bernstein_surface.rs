@@ -1,7 +1,10 @@
 use crate::{
-    algebra_error::AlgebraResult,
+    algebra_error::{AlgebraError, AlgebraResult},
     bernstein::{bernstein_hypervolume::BernsteinHyperVolume, bernstein_surface::BernsteinSurface},
-    primitives::{efloat::EFloat64, point::Point},
+    primitives::{
+        color::Color10, efloat::EFloat64, point::Point, primitive_scene::PrimitiveScene,
+        primitive_scene_recorder::PrimitiveSceneRecorder,
+    },
     surfaces::surface_like::SurfaceLike,
 };
 
@@ -44,17 +47,66 @@ fn extend_if_not_present(result: &mut Vec<Point>, points: Vec<Point>) {
     }
 }
 
+struct RecursionCounter {
+    count: usize,
+}
+
 fn refine(
     s1: &BernsteinSurface<Point>,
     s2: &BernsteinSurface<Point>,
     resultant: &BernsteinHyperVolume<EFloat64>,
     split_u: bool,
+    debug_data: BernsteinHyperVolume<Point>,
+    counter: &mut RecursionCounter,
+    scene_recorder: &mut PrimitiveSceneRecorder,
 ) -> AlgebraResult<Vec<Point>> {
+    if counter.count == 0 {
+        return Err(AlgebraError::new(
+            "Recursion limit reached. Likely the solution is a curve".to_string(),
+        ));
+    }
+    counter.count -= 1;
+
     let hull1 = s1.get_convex_hull();
     let hull2 = s2.get_convex_hull();
 
     match (hull1, hull2) {
         (Ok(hull1), Ok(hull2)) => {
+            if counter.count > MAX_RECURSION_COUNT - 200 {
+                let mut scene = PrimitiveScene::new();
+                scene.add_surface_like(s1, Color10::Red, 10)?;
+                scene.add_surface_like(s2, Color10::Blue, 10)?;
+
+                scene.add_convex_hull(hull1.clone(), Color10::Green);
+                scene.add_convex_hull(hull2.clone(), Color10::Green);
+
+                if counter.count == MAX_RECURSION_COUNT - 20 {
+                    scene.add_convex_hull(debug_data.get_convex_hull()?, Color10::Red);
+                    scene.add_debug_text("debug_data".to_string());
+                }
+
+                for c in resultant.coefficients.iter() {
+                    for c2 in c.iter() {
+                        for c3 in c2.iter() {
+                            for c4 in c3.iter() {
+                                scene.add_point(
+                                    Point::new(EFloat64::zero(), *c4, EFloat64::zero()),
+                                    Color10::Green,
+                                );
+                            }
+                        }
+                    }
+                }
+
+                if hull1.intersects(&hull2) {
+                    scene.add_debug_text("Intersects".to_string());
+                } else {
+                    scene.add_debug_text("Does not intersect".to_string());
+                }
+
+                scene_recorder.add_scene(scene);
+            }
+
             if !hull1.intersects(&hull2) {
                 return Ok(vec![]);
             }
@@ -79,12 +131,60 @@ fn refine(
         let (raa, rab) = a.subdivide_w(EFloat64::from(0.5));
         let (rba, rbb) = b.subdivide_w(EFloat64::from(0.5));
 
+        let (debug_a, debug_b) = debug_data.subdivide_u(EFloat64::from(0.5));
+        let (debug_raa, debug_rab) = debug_a.subdivide_w(EFloat64::from(0.5));
+        let (debug_rba, debug_rbb) = debug_b.subdivide_w(EFloat64::from(0.5));
+
         let mut result = vec![];
 
-        extend_if_not_present(&mut result, refine(&s1a, &s2a, &raa, !split_u)?);
-        extend_if_not_present(&mut result, refine(&s1a, &s2b, &rab, !split_u)?);
-        extend_if_not_present(&mut result, refine(&s1b, &s2a, &rba, !split_u)?);
-        extend_if_not_present(&mut result, refine(&s1b, &s2b, &rbb, !split_u)?);
+        extend_if_not_present(
+            &mut result,
+            refine(
+                &s1a,
+                &s2a,
+                &raa,
+                !split_u,
+                debug_raa,
+                counter,
+                scene_recorder,
+            )?,
+        );
+        extend_if_not_present(
+            &mut result,
+            refine(
+                &s1a,
+                &s2b,
+                &rab,
+                !split_u,
+                debug_rab,
+                counter,
+                scene_recorder,
+            )?,
+        );
+        extend_if_not_present(
+            &mut result,
+            refine(
+                &s1b,
+                &s2a,
+                &rba,
+                !split_u,
+                debug_rba,
+                counter,
+                scene_recorder,
+            )?,
+        );
+        extend_if_not_present(
+            &mut result,
+            refine(
+                &s1b,
+                &s2b,
+                &rbb,
+                !split_u,
+                debug_rbb,
+                counter,
+                scene_recorder,
+            )?,
+        );
 
         return Ok(result);
     } else {
@@ -92,23 +192,74 @@ fn refine(
         let (s2a, s2b) = s2.split_v()?;
 
         let (a, b) = resultant.subdivide_v(EFloat64::from(0.5));
-        let (raa, rab) = a.subdivide_w(EFloat64::from(0.5));
-        let (rba, rbb) = b.subdivide_w(EFloat64::from(0.5));
+        let (raa, rab) = a.subdivide_x(EFloat64::from(0.5));
+        let (rba, rbb) = b.subdivide_x(EFloat64::from(0.5));
+
+        let (debug_a, debug_b) = debug_data.subdivide_v(EFloat64::from(0.5));
+        let (debug_raa, debug_rab) = debug_a.subdivide_x(EFloat64::from(0.5));
+        let (debug_rba, debug_rbb) = debug_b.subdivide_x(EFloat64::from(0.5));
 
         let mut result = vec![];
 
-        extend_if_not_present(&mut result, refine(&s1a, &s2a, &raa, !split_u)?);
-        extend_if_not_present(&mut result, refine(&s1a, &s2b, &rab, !split_u)?);
-        extend_if_not_present(&mut result, refine(&s1b, &s2a, &rba, !split_u)?);
-        extend_if_not_present(&mut result, refine(&s1b, &s2b, &rbb, !split_u)?);
+        extend_if_not_present(
+            &mut result,
+            refine(
+                &s1a,
+                &s2a,
+                &raa,
+                !split_u,
+                debug_raa,
+                counter,
+                scene_recorder,
+            )?,
+        );
+        extend_if_not_present(
+            &mut result,
+            refine(
+                &s1a,
+                &s2b,
+                &rab,
+                !split_u,
+                debug_rab,
+                counter,
+                scene_recorder,
+            )?,
+        );
+        extend_if_not_present(
+            &mut result,
+            refine(
+                &s1b,
+                &s2a,
+                &rba,
+                !split_u,
+                debug_rba,
+                counter,
+                scene_recorder,
+            )?,
+        );
+        extend_if_not_present(
+            &mut result,
+            refine(
+                &s1b,
+                &s2b,
+                &rbb,
+                !split_u,
+                debug_rbb,
+                counter,
+                scene_recorder,
+            )?,
+        );
 
         return Ok(result);
     }
 }
 
+const MAX_RECURSION_COUNT: usize = 700;
+
 pub fn get_critical_points_perpendicular_tangent_x(
     s1: &BernsteinSurface<Point>,
     s2: &BernsteinSurface<Point>,
+    scene_recorder: &mut PrimitiveSceneRecorder,
 ) -> AlgebraResult<Vec<Point>> {
     let hull_s1 = s1.get_convex_hull()?;
     let hull_s2 = s2.get_convex_hull()?;
@@ -127,7 +278,91 @@ pub fn get_critical_points_perpendicular_tangent_x(
     let intersection_tangent = n1_hyper.cross(&n2_hyper);
     let product = intersection_tangent.dot(&BernsteinHyperVolume::unit_x());
 
-    let result = refine(s1, s2, &product, true)?;
+    let result = refine(
+        s1,
+        s2,
+        &product,
+        true,
+        intersection_tangent,
+        &mut RecursionCounter {
+            count: MAX_RECURSION_COUNT,
+        },
+        scene_recorder,
+    )?;
+
+    Ok(result)
+}
+
+pub fn get_critical_points_perpendicular_tangent_y(
+    s1: &BernsteinSurface<Point>,
+    s2: &BernsteinSurface<Point>,
+    scene_recorder: &mut PrimitiveSceneRecorder,
+) -> AlgebraResult<Vec<Point>> {
+    let hull_s1 = s1.get_convex_hull()?;
+    let hull_s2 = s2.get_convex_hull()?;
+
+    if !hull_s1.intersects(&hull_s2) {
+        return Ok(vec![]);
+    }
+
+    // Now get normals
+    let n1 = s1.normal();
+    let n2 = s2.normal();
+
+    let n1_hyper = n1.to_hypervolume_uv();
+    let n2_hyper = n2.to_hypervolume_wx();
+
+    let intersection_tangent = n1_hyper.cross(&n2_hyper);
+    let product = intersection_tangent.dot(&BernsteinHyperVolume::unit_y());
+
+    let result = refine(
+        s1,
+        s2,
+        &product,
+        true,
+        intersection_tangent,
+        &mut RecursionCounter {
+            count: MAX_RECURSION_COUNT,
+        },
+        scene_recorder,
+    )?;
+
+    Ok(result)
+}
+
+pub fn get_critical_points_perpendicular_tangent_z(
+    s1: &BernsteinSurface<Point>,
+    s2: &BernsteinSurface<Point>,
+    scene_recorder: &mut PrimitiveSceneRecorder,
+) -> AlgebraResult<Vec<Point>> {
+    let hull_s1 = s1.get_convex_hull()?;
+    let hull_s2 = s2.get_convex_hull()?;
+
+    if !hull_s1.intersects(&hull_s2) {
+        return Ok(vec![]);
+    }
+
+    // Now get normals
+    let n1 = s1.normal();
+    let n2 = s2.normal();
+
+    let n1_hyper = n1.to_hypervolume_uv();
+    let n2_hyper = n2.to_hypervolume_wx();
+
+    let intersection_tangent = n1_hyper.cross(&n2_hyper);
+    let product = intersection_tangent.dot(&BernsteinHyperVolume::unit_z());
+
+    let result = refine(
+        s1,
+        s2,
+        &product,
+        true,
+        intersection_tangent,
+        &mut RecursionCounter {
+            count: MAX_RECURSION_COUNT,
+        },
+        scene_recorder,
+    )?;
 
     Ok(result)
 }
@@ -185,7 +420,24 @@ mod tests {
         let s1 = mountain();
         let s2 = upside_down_mountain();
 
-        let critical_points = get_critical_points_perpendicular_tangent_x(&s1, &s2)?;
+        let mut scene_recorder_x = PrimitiveSceneRecorder::new();
+        let mut scene_recorder_y = PrimitiveSceneRecorder::new();
+
+        let mut critical_points =
+            get_critical_points_perpendicular_tangent_x(&s1, &s2, &mut scene_recorder_x)?;
+        match get_critical_points_perpendicular_tangent_y(&s1, &s2, &mut scene_recorder_y) {
+            Ok(points) => {
+                critical_points.extend(points);
+            }
+            Err(_) => {
+                println!("No critical points perpendicular to tangent y");
+            }
+        }
+        // critical_points.extend(get_critical_points_perpendicular_tangent_z(&s1, &s2)?);
+
+        println!("Critical points: {:?}", critical_points.len());
+        scene_recorder_x.save_to_folder("test_outputs/critical_points_perpendicular_tangent_x")?;
+        scene_recorder_y.save_to_folder("test_outputs/critical_points_perpendicular_tangent_y")?;
 
         let mut scene = PrimitiveScene::new();
         scene.add_surface_like(&s1, Color10::Red, 30)?;

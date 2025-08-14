@@ -68,6 +68,14 @@ impl BernsteinHyperVolume<Point> {
     pub fn unit_x() -> Self {
         BernsteinHyperVolume::new(vec![vec![vec![vec![Point::unit_x(); 1]; 1]; 1]; 1])
     }
+
+    pub fn unit_y() -> Self {
+        BernsteinHyperVolume::new(vec![vec![vec![vec![Point::unit_y(); 1]; 1]; 1]; 1])
+    }
+
+    pub fn unit_z() -> Self {
+        BernsteinHyperVolume::new(vec![vec![vec![vec![Point::unit_z(); 1]; 1]; 1]; 1])
+    }
 }
 impl BernsteinHyperVolume<EFloat64> {
     pub fn could_be_zero(&self) -> bool {
