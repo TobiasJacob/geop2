@@ -29,8 +29,14 @@ pub fn rasterize_surface_like(
                 EFloat64::from((i + 1) as f64 / n as f64),
                 EFloat64::from((j + 1) as f64 / n as f64),
             );
-            triangles.push(TriangleFace::try_new(point1, point2, point3).with_context(&context)?);
-            triangles.push(TriangleFace::try_new(point3, point2, point4).with_context(&context)?);
+            let t1 = TriangleFace::try_new(point1, point2, point3).with_context(&context);
+            if let Ok(t1) = t1 {
+                triangles.push(t1);
+            }
+            let t2 = TriangleFace::try_new(point3, point2, point4).with_context(&context);
+            if let Ok(t2) = t2 {
+                triangles.push(t2);
+            }
         }
     }
     Ok(triangles)

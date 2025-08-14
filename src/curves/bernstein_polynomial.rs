@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Sub};
 
 use crate::binomial_coefficient;
+use crate::surfaces::bernstein_surface::BernsteinSurface;
 use crate::zero::Zero;
 use crate::{
     algebra_error::AlgebraResult,
@@ -36,6 +37,29 @@ impl<T> BernsteinPolynomial<T> {
 
     pub fn degree(&self) -> usize {
         self.coefficients.len() - 1
+    }
+}
+
+impl<T> BernsteinPolynomial<T>
+where
+    T: Clone,
+{
+    pub fn to_surface_u(&self) -> BernsteinSurface<T> {
+        let n = self.degree();
+        let mut coefficients = Vec::<Vec<T>>::with_capacity(n + 1);
+        for i in 0..=n {
+            coefficients.push(vec![self.coefficients[i].clone()]);
+        }
+        BernsteinSurface::new(coefficients)
+    }
+
+    pub fn to_surface_v(&self) -> BernsteinSurface<T> {
+        let n = self.degree();
+        let mut coefficients = vec![Vec::<T>::with_capacity(n + 1); 1];
+        for i in 0..=n {
+            coefficients[0].push(self.coefficients[i].clone());
+        }
+        BernsteinSurface::new(coefficients)
     }
 }
 

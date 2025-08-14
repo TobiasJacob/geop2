@@ -3,6 +3,7 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use crate::algebra_error::AlgebraResult;
 use crate::binomial_coefficient;
+use crate::curves::bernstein_polynomial::BernsteinPolynomial;
 use crate::primitives::{convex_hull::ConvexHull, efloat::EFloat64, point::Point};
 use crate::surfaces::surface_like::SurfaceLike;
 use crate::zero::Zero;
@@ -39,21 +40,22 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let du = self.degree_u();
         let dv = self.degree_v();
-        write!(f, "BernsteinSurface(")?;
+        write!(f, "BernsteinSurface(\n")?;
         for i in 0..=du {
             write!(f, "[")?;
             for j in 0..=dv {
                 let c = &self.coefficients[i][j];
-                if *c != T::zero() {
-                    write!(f, "{} B_{{{},{}}}(u) B_{{{},{}}}(v)", c, i, du, j, dv)?;
-                }
+                // if *c != T::zero() {
+                // write!(f, "{} B_{{{},{}}}(u) B_{{{},{}}}(v)", c, i, du, j, dv)?;
+                write!(f, "{}", c)?;
+                // }
                 if j < dv {
                     write!(f, ", ")?;
                 }
             }
             write!(f, "]")?;
             if i < du {
-                write!(f, ", ")?;
+                write!(f, "\n")?;
             }
         }
         write!(f, ")")
@@ -94,6 +96,56 @@ where
             }
         }
         gamma[0].clone()
+    }
+
+    /// Extract the isoparametric curve in u for a fixed v parameter.
+    /// Returns a 1D Bernstein polynomial whose control points are obtained by
+    /// de Casteljau reduction along the v-direction for each u-index.
+    pub fn iso_u_at(&self, v: EFloat64) -> BernsteinPolynomial<T> {
+        if self.coefficients.is_empty() || self.coefficients[0].is_empty() {
+            panic!("Empty BernsteinSurface");
+        }
+        let nu = self.coefficients.len();
+        let nv = self.coefficients[0].len();
+
+        let mut control_points: Vec<T> = Vec::with_capacity(nu);
+        for i in 0..nu {
+            // Reduce row i along v
+            let mut beta: Vec<T> = (0..nv).map(|j| self.coefficients[i][j].clone()).collect();
+            for r in 1..nv {
+                for j in 0..(nv - r) {
+                    beta[j] = beta[j].clone() * (EFloat64::one() - v.clone())
+                        + beta[j + 1].clone() * v.clone();
+                }
+            }
+            control_points.push(beta[0].clone());
+        }
+        BernsteinPolynomial::new(control_points)
+    }
+
+    /// Extract the isoparametric curve in v for a fixed u parameter.
+    /// Returns a 1D Bernstein polynomial whose control points are obtained by
+    /// de Casteljau reduction along the u-direction for each v-index.
+    pub fn iso_v_at(&self, u: EFloat64) -> BernsteinPolynomial<T> {
+        if self.coefficients.is_empty() || self.coefficients[0].is_empty() {
+            panic!("Empty BernsteinSurface");
+        }
+        let nu = self.coefficients.len();
+        let nv = self.coefficients[0].len();
+
+        let mut control_points: Vec<T> = Vec::with_capacity(nv);
+        for j in 0..nv {
+            // Reduce column j along u
+            let mut beta: Vec<T> = (0..nu).map(|i| self.coefficients[i][j].clone()).collect();
+            for r in 1..nu {
+                for i in 0..(nu - r) {
+                    beta[i] = beta[i].clone() * (EFloat64::one() - u.clone())
+                        + beta[i + 1].clone() * u.clone();
+                }
+            }
+            control_points.push(beta[0].clone());
+        }
+        BernsteinPolynomial::new(control_points)
     }
 }
 
