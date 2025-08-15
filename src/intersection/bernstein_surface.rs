@@ -11,6 +11,7 @@ use crate::{
 pub fn get_conormal_points(
     s1: &BernsteinSurface<Point>,
     s2: &BernsteinSurface<Point>,
+    scene_recorder: &mut PrimitiveSceneRecorder,
 ) -> AlgebraResult<Vec<Point>> {
     let hull_s1 = s1.get_convex_hull()?;
     let hull_s2 = s2.get_convex_hull()?;
@@ -26,12 +27,22 @@ pub fn get_conormal_points(
     let n1_hyper = n1.to_hypervolume_uv();
     let n2_hyper = n2.to_hypervolume_wx();
 
-    let cross = n1_hyper.cross(&n2_hyper);
+    let normals_product = n1_hyper.cross(&n2_hyper);
+    let product = normals_product.dot(&normals_product);
 
-    // Check if the dot product
-    let _hull = cross.get_convex_hull()?;
+    let result = refine(
+        s1,
+        s2,
+        &product,
+        true,
+        n1_hyper,
+        &mut RecursionCounter {
+            count: MAX_RECURSION_COUNT,
+        },
+        scene_recorder,
+    )?;
 
-    Ok(vec![])
+    Ok(result)
 }
 
 fn extend_if_not_present(result: &mut Vec<Point>, points: Vec<Point>) {
@@ -80,10 +91,10 @@ fn refine(
                 scene.add_convex_hull(hull1.clone(), Color10::Green);
                 scene.add_convex_hull(hull2.clone(), Color10::Green);
 
-                if counter.count == MAX_RECURSION_COUNT - 20 {
-                    scene.add_convex_hull(debug_data.get_convex_hull()?, Color10::Red);
-                    scene.add_debug_text("debug_data".to_string());
-                }
+                // if counter.count == MAX_RECURSION_COUNT - 20 {
+                //     scene.add_convex_hull(debug_data.get_convex_hull()?, Color10::Red);
+                //     scene.add_debug_text("debug_data".to_string());
+                // }
 
                 for c in resultant.coefficients.iter() {
                     for c2 in c.iter() {
@@ -109,6 +120,12 @@ fn refine(
 
             if !hull1.intersects(&hull2) {
                 return Ok(vec![]);
+            }
+            if hull1.max_size() < 1e-6 {
+                let union = s1
+                .eval(EFloat64::from(0.5), EFloat64::from(0.5))
+                .union(s2.eval(EFloat64::from(0.5), EFloat64::from(0.5)));
+                return Ok(vec![union]);
             }
         }
         _ => {
@@ -254,7 +271,7 @@ fn refine(
     }
 }
 
-const MAX_RECURSION_COUNT: usize = 700;
+const MAX_RECURSION_COUNT: usize = 5000;
 
 pub fn get_critical_points_perpendicular_tangent_x(
     s1: &BernsteinSurface<Point>,
@@ -415,6 +432,47 @@ mod tests {
             ],
         ])
     }
+
+    fn valley1() -> BernsteinSurface<Point> {
+        BernsteinSurface::<Point>::new(vec![
+            vec![
+                Point::from_f64(0.0, 0.0, -1.0),
+                Point::from_f64(1.0, 0.0, 0.0),
+                Point::from_f64(2.0, 0.0, 1.0),
+            ],
+            vec![
+                Point::from_f64(0.0, 1.0, 0.0),
+                Point::from_f64(1.0, 1.0, 0.0),
+                Point::from_f64(2.0, 1.0, 0.0),
+            ],
+            vec![
+                Point::from_f64(0.0, 2.0, 1.0),
+                Point::from_f64(1.0, 2.0, 0.0),
+                Point::from_f64(2.0, 2.0, -1.0),
+            ],
+        ])
+    }
+
+    fn valley2() -> BernsteinSurface<Point> {
+        BernsteinSurface::<Point>::new(vec![
+            vec![
+                Point::from_f64(0.0, 0.0, 1.0),
+                Point::from_f64(1.0, 0.0, 0.0),
+                Point::from_f64(2.0, 0.0, -1.0),
+            ],
+            vec![
+                Point::from_f64(0.0, 1.0, 0.0),
+                Point::from_f64(1.0, 1.0, 0.0),
+                Point::from_f64(2.0, 1.0, 0.0),
+            ],
+            vec![
+                Point::from_f64(0.0, 2.0, -1.0),
+                Point::from_f64(1.0, 2.0, 0.0),
+                Point::from_f64(2.0, 2.0, 1.0),
+            ],
+        ])
+    }
+
     #[test]
     fn test_get_critical_points_perpendicular_tangent_x() -> AlgebraResult<()> {
         let s1 = mountain();
@@ -450,6 +508,37 @@ mod tests {
         }
 
         scene.save_to_file("test_outputs/critical_points_perpendicular_tangent_x.html")?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_critical_points_2() -> AlgebraResult<()> {
+        let s1 = valley1();
+        let s2 = valley2();
+
+        let mut scene_recorder_normals = PrimitiveSceneRecorder::new();
+
+        // get_critical_points_perpendicular_tangent_x(&s1, &s2, &mut scene_recorder_x).expect_err("Should reach recursion limit");
+        // get_critical_points_perpendicular_tangent_y(&s1, &s2, &mut scene_recorder_y).expect_err("Should reach recursion limit");
+        // get_critical_points_perpendicular_tangent_z(&s1, &s2, &mut scene_recorder_z)
+        //     .expect_err("Should reach recursion limit");
+        // get_conormal_points(&s1, &s2, &mut scene_recorder_normals);
+        let critical_points = get_conormal_points(&s1, &s2, &mut scene_recorder_normals)?;
+
+        println!("Critical points: {:?}", critical_points.len());
+        // scene_recorder_x.save_to_folder("test_outputs/critical_points_perpendicular_tangent_x")?;
+        scene_recorder_normals.save_to_folder("test_outputs/critical_points_2")?;
+
+        let mut scene = PrimitiveScene::new();
+        scene.add_surface_like(&s1, Color10::Red, 30)?;
+        scene.add_surface_like(&s2, Color10::Blue, 30)?;
+
+        for c in critical_points.iter() {
+            scene.add_point(*c, Color10::Green);
+        }
+
+        scene.save_to_file("test_outputs/critical_points_2.html")?;
 
         Ok(())
     }
